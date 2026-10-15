@@ -1,0 +1,120 @@
+package com.calculator;
+
+import com.calculator.calculator.Calculator;
+import com.calculator.model.AngleMode;
+import com.calculator.model.CalcException;
+
+/** Test đơn giản (không cần JUnit): chạy bằng `java com.calculator.CalculatorTest`. */
+public class CalculatorTest {
+    private static int passed = 0, failed = 0;
+
+    public static void main(String[] args) {
+        Calculator c = new Calculator();
+        c.setAngleMode(AngleMode.DEG);
+
+        // Cơ bản
+        check(c, "2+3×(4-1)", "11");
+        check(c, "2+3*(4-1)", "11");
+        check(c, "2^10", "1024");
+        check(c, "0.1+0.2", "0.3");
+        check(c, "1÷3", "0.3333333333");
+        check(c, "10-4-3", "3");
+        check(c, "2^3^2", "512");
+        // Số âm
+        check(c, "-2^2", "-4");
+        check(c, "2^-1", "0.5");
+        check(c, "2×-3", "-6");
+        check(c, "-(3)", "-3");
+        check(c, "(-2)^2", "4");
+        // Hàm
+        check(c, "sin(30)", "0.5");
+        check(c, "cos(60)", "0.5");
+        check(c, "sin(180)", "0");
+        check(c, "asin(1)", "90");
+        check(c, "log(1000)", "3");
+        check(c, "ln(e)", "1");
+        check(c, "√(16)", "4");
+        check(c, "3root27", "3");
+        check(c, "abs(-5)", "5");
+        check(c, "exp(0)", "1");
+        check(c, "10^(2)", "100");
+        // Giai thừa, %, tổ hợp
+        check(c, "5!", "120");
+        check(c, "0!", "1");
+        check(c, "50%", "0.5");
+        check(c, "200×10%", "20");
+        check(c, "5nCr2", "10");
+        check(c, "5nPr2", "20");
+        // Nhân ngầm, hằng số, tự đóng ngoặc
+        check(c, "2(3)", "6");
+        check(c, "2π", "6.283185307");
+        check(c, "3sin(30)", "1.5");
+        check(c, "(1+2", "3");
+        check(c, "2×(3+4", "14");
+        // Số lớn / nhỏ
+        check(c, "10^10", "1×10^10");
+        check(c, "1÷10^10", "1×10^-10");
+        // Ans và bộ nhớ
+        c.evaluate("7");
+        check(c, "Ans+1", "8");
+        c.memoryPlus(5);
+        check(c, "M×2", "10");
+        // Chế độ RAD
+        c.setAngleMode(AngleMode.RAD);
+        check(c, "sin(π÷2)", "1");
+        c.setAngleMode(AngleMode.DEG);
+        // Lỗi
+        checkError(c, "1÷0", "Math ERROR");
+        checkError(c, "tan(90)", "Math ERROR");
+        checkError(c, "√(-1)", "Math ERROR");
+        checkError(c, "log(0)", "Math ERROR");
+        checkError(c, "(-8)^0.5", "Math ERROR");
+        checkError(c, "1+", "Syntax ERROR");
+        checkError(c, "×3", "Syntax ERROR");
+        checkError(c, "1+2)", "Syntax ERROR");
+        checkError(c, "2..3", "Syntax ERROR");
+        checkError(c, "abc", "Syntax ERROR");
+        checkError(c, "171!", "Math ERROR");
+        // Hiển thị
+        eq("RPN", "2 3 4 1 - × +".replace("×", "*"), c.toRPNString("2+3×(4-1)"));
+        eq("fraction 0.75", "3/4", Calculator.toFraction(0.75));
+        eq("fraction -1/3", "-1/3", Calculator.toFraction(-1.0 / 3));
+        eq("fraction int", null, Calculator.toFraction(4));
+        eq("hex", "FF", Calculator.toBase(255, 16));
+        eq("bin", "1010", Calculator.toBase(10, 2));
+        eq("oct", "17", Calculator.toBase(15, 8));
+
+        System.out.println("\nPassed: " + passed + "  Failed: " + failed);
+        if (failed > 0) System.exit(1);
+    }
+
+    private static void check(Calculator c, String expr, String expected) {
+        try {
+            eq(expr, expected, Calculator.format(c.evaluate(expr)));
+        } catch (RuntimeException e) {
+            fail(expr, expected, e.getMessage());
+        }
+    }
+
+    private static void checkError(Calculator c, String expr, String expectedMsg) {
+        try {
+            double v = c.evaluate(expr);
+            fail(expr, expectedMsg, "kết quả " + v);
+        } catch (CalcException e) {
+            eq(expr, expectedMsg, e.getMessage());
+        }
+    }
+
+    private static void eq(String name, String expected, String actual) {
+        if ((expected == null && actual == null) || (expected != null && expected.equals(actual))) {
+            passed++;
+        } else {
+            fail(name, expected, actual);
+        }
+    }
+
+    private static void fail(String name, String expected, String actual) {
+        failed++;
+        System.out.println("FAIL  " + name + "  expected=" + expected + "  actual=" + actual);
+    }
+}
