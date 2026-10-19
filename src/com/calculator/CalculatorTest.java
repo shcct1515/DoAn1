@@ -75,7 +75,24 @@ public class CalculatorTest {
         checkError(c, "2..3", "Syntax ERROR");
         checkError(c, "abc", "Syntax ERROR");
         checkError(c, "171!", "Math ERROR");
+        // Phân số và hỗn số (ký tự ⁄ = \u2044)
+        String f = "\u2044";
+        check(c, "1" + f + "2+1" + f + "3", "0.8333333333");
+        check(c, "3" + f + "4×2", "1.5");
+        check(c, "2" + f + "3" + f + "4", "2.75");
+        check(c, "-1" + f + "2", "-0.5");
+        check(c, "9^1" + f + "2", "3");
+        check(c, "2(1" + f + "2)", "1");
+        checkError(c, "1" + f + "0", "Math ERROR");
+        checkError(c, "1" + f, "Syntax ERROR");
+        checkError(c, "1.5" + f + "2", "Syntax ERROR");
+        // Ký tự ẩn kết thúc số mũ: x² rồi gõ 3 = x²×3
+        String e = "\u200B";
+        check(c, "2^2" + e + "3", "12");
+        check(c, "2^23", "8388608");
         // Hiển thị
+        long[] fr = Calculator.fraction(2.75);
+        eq("fraction parts", "11/4", fr == null ? null : fr[0] + "/" + fr[1]);
         eq("RPN", "2 3 4 1 - × +".replace("×", "*"), c.toRPNString("2+3×(4-1)"));
         eq("fraction 0.75", "3/4", Calculator.toFraction(0.75));
         eq("fraction -1/3", "-1/3", Calculator.toFraction(-1.0 / 3));

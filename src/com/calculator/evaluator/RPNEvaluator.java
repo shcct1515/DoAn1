@@ -143,7 +143,7 @@ public class RPNEvaluator {
         }
     }
 
-    /** Loại nhiễu số học, ví dụ sin(180°) = 1.2e-16 → 0. */
+    /** Loại nhiễu số học, sin(180°) = 1.2e-16 → 0. */
     private static double snap(double v) {
         return Math.abs(v) < 1e-14 ? 0 : v;
     }

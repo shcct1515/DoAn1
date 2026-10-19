@@ -3,26 +3,18 @@ package com.calculator.ui;
 import com.calculator.calculator.Calculator;
 import com.calculator.model.AngleMode;
 import com.calculator.model.CalcException;
+import com.calculator.model.Symbols;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.AbstractAction;
 import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
-import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -38,8 +30,8 @@ public class CalculatorUI extends JFrame {
 
     // ---- màu sắc
     private static final Color BODY   = new Color(0x2b2f36);
-    private static final Color LCD    = new Color(0xc5d0b5);
-    private static final Color LCD_FG = new Color(0x1d2318);
+    private static final Color LCD    = ExpressionPane.LCD;
+    private static final Color LCD_FG = ExpressionPane.LCD_FG;
     private static final Color FN     = new Color(0x4a505a);
     private static final Color NUM    = new Color(0xe6e6e6);
     private static final Color OP     = new Color(0x6b7380);
@@ -48,56 +40,26 @@ public class CalculatorUI extends JFrame {
     private static final Color SHIFT  = new Color(0xd4a017);
     private static final Color GOLD   = new Color(0xffd54f);
 
-    /** Các chuỗi cần xoá nguyên khối khi bấm DEL (dài trước, ngắn sau). */
-    private static final String[] WHOLE_TOKENS = {
-            "asin(", "acos(", "atan(", "sinh(", "cosh(", "tanh(", "sqrt(", "cbrt(",
-            "sin(", "cos(", "tan(", "log(", "exp(", "abs(", "ln(", "√(",
-            "Ans", "root", "nPr", "nCr"};
+    private static final String FRAC = String.valueOf(Symbols.FRACTION_SLASH);
+    private static final String EXP_END = String.valueOf(Symbols.EXPONENT_END);
+
+    private static final String MENU_CLOSED = "MENU CHỨC NĂNG  ►";
+    private static final String MENU_OPEN = "MENU CHỨC NĂNG  ◄";
     private static final String[] BASE_NAMES = {"DEC", "HEX", "BIN", "OCT"};
     private static final int[] BASE_VALUES = {10, 16, 2, 8};
 
     private final Calculator calc = new Calculator();
-    /** Ô nhập biểu thức: JTextPane để hiển thị số mũ nhỏ, nâng lên trên (không xuống dòng). */
-    private final JTextPane input = new JTextPane() {
-        @Override
-        public boolean getScrollableTracksViewportWidth() {
-            return false;
-        }
-    };
-    private boolean restylePending = false;
-
-    // Kiểu chữ cho ô nhập
-    private static final SimpleAttributeSet STYLE_NORMAL = new SimpleAttributeSet();
-    private static final SimpleAttributeSet STYLE_SUPER = new SimpleAttributeSet();
-    private static final SimpleAttributeSet STYLE_HIDDEN = new SimpleAttributeSet();
-
-    static {
-        StyleConstants.setFontFamily(STYLE_NORMAL, Font.MONOSPACED);
-        StyleConstants.setFontSize(STYLE_NORMAL, 22);
-        StyleConstants.setBold(STYLE_NORMAL, false);
-        StyleConstants.setSuperscript(STYLE_NORMAL, false);
-        StyleConstants.setForeground(STYLE_NORMAL, LCD_FG);
-
-        // số mũ: nhỏ hơn và nâng lên trên
-        StyleConstants.setFontFamily(STYLE_SUPER, Font.MONOSPACED);
-        StyleConstants.setFontSize(STYLE_SUPER, 18);
-        StyleConstants.setBold(STYLE_SUPER, false);
-        StyleConstants.setSuperscript(STYLE_SUPER, true);
-        StyleConstants.setForeground(STYLE_SUPER, LCD_FG);
-
-        // ký tự '^' được ẩn đi (cùng màu nền, cỡ rất nhỏ)
-        StyleConstants.setFontFamily(STYLE_HIDDEN, Font.MONOSPACED);
-        StyleConstants.setFontSize(STYLE_HIDDEN, 2);
-        StyleConstants.setSuperscript(STYLE_HIDDEN, false);
-        StyleConstants.setForeground(STYLE_HIDDEN, LCD);
-    }
-    private final JLabel result = new JLabel("0", SwingConstants.RIGHT);
+    private final ExpressionPane input = new ExpressionPane();
+    private final ResultView result = new ResultView();
     private final JLabel status = new JLabel(" ");
     private final List<KeyButton> keys = new ArrayList<>();
+    private final MenuPanel menuPanel = new MenuPanel(calc);
+    private final JButton menuButton = new JButton(MENU_CLOSED);
 
     private boolean shift = false;
     private boolean justEvaluated = false;
     private boolean fractionView = false;
+    private boolean menuOpen = false;
     private AngleMode angleMode = AngleMode.DEG;
     private int baseIndex = 0;
     private Double lastResult = null;
@@ -109,17 +71,40 @@ public class CalculatorUI extends JFrame {
         JPanel root = new JPanel(new BorderLayout(0, 8));
         root.setBackground(BODY);
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        root.add(buildScreen(), BorderLayout.NORTH);
+        root.add(buildTop(), BorderLayout.NORTH);
         root.add(buildKeypad(), BorderLayout.CENTER);
+        menuPanel.setVisible(false);
+        root.add(menuPanel, BorderLayout.EAST);
         setContentPane(root);
 
         updateStatus();
-        setMinimumSize(new Dimension(420, 560));
-        setSize(460, 640);
+        setMinimumSize(new Dimension(420, 600));
+        setSize(460, 700);
         setLocationRelativeTo(null);
     }
 
-    // ================================================================ màn hình
+    // ================================================================ màn hình + thanh MENU
+    private JPanel buildTop() {
+        JPanel top = new JPanel(new BorderLayout(0, 6));
+        top.setOpaque(false);
+        top.add(buildScreen(), BorderLayout.CENTER);
+
+        menuButton.setFocusable(false);
+        menuButton.setOpaque(true);
+        menuButton.setBackground(FN);
+        menuButton.setForeground(GOLD);
+        menuButton.setFont(new Font("Dialog", Font.BOLD, 13));
+        menuButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0x15171a)),
+                BorderFactory.createEmptyBorder(6, 0, 6, 0)));
+        menuButton.addActionListener(e -> {
+            toggleMenu();
+            input.requestFocusInWindow();
+        });
+        top.add(menuButton, BorderLayout.SOUTH);
+        return top;
+    }
+
     private JPanel buildScreen() {
         JPanel lcd = new JPanel();
         lcd.setLayout(new BoxLayout(lcd, BoxLayout.Y_AXIS));
@@ -132,12 +117,6 @@ public class CalculatorUI extends JFrame {
         status.setForeground(LCD_FG);
         status.setAlignmentX(LEFT_ALIGNMENT);
 
-        input.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 22));
-        input.setBackground(LCD);
-        input.setForeground(LCD_FG);
-        input.setCaretColor(LCD_FG);
-        input.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
-        input.setCharacterAttributes(STYLE_NORMAL, true);
         // phím Enter = "="
         input.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "calculate");
         input.getActionMap().put("calculate", new AbstractAction() {
@@ -146,12 +125,6 @@ public class CalculatorUI extends JFrame {
                 calculate();
             }
         });
-        // mỗi lần nội dung đổi thì định dạng lại số mũ
-        input.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e)  { scheduleRestyle(); }
-            @Override public void removeUpdate(DocumentEvent e)  { scheduleRestyle(); }
-            @Override public void changedUpdate(DocumentEvent e) { }
-        });
 
         JScrollPane inputScroll = new JScrollPane(input,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
@@ -159,16 +132,12 @@ public class CalculatorUI extends JFrame {
         inputScroll.setBorder(BorderFactory.createEmptyBorder());
         inputScroll.getViewport().setBackground(LCD);
         inputScroll.setBackground(LCD);
-        inputScroll.setPreferredSize(new Dimension(100, 40));
-        inputScroll.setMinimumSize(new Dimension(100, 40));
-        inputScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        inputScroll.setPreferredSize(new Dimension(100, 44));
+        inputScroll.setMinimumSize(new Dimension(100, 44));
+        inputScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
         inputScroll.setAlignmentX(LEFT_ALIGNMENT);
 
-        result.setFont(new Font(Font.MONOSPACED, Font.BOLD, 32));
-        result.setForeground(LCD_FG);
         result.setAlignmentX(LEFT_ALIGNMENT);
-        result.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        result.setPreferredSize(new Dimension(100, 44));
 
         lcd.add(status);
         lcd.add(inputScroll);
@@ -181,12 +150,12 @@ public class CalculatorUI extends JFrame {
         JPanel p = new JPanel(new GridLayout(8, 6, 5, 5));
         p.setBackground(BODY);
 
-        // Hàng 1: điều khiển
+        // Hàng 1: điều khiển (SHIFT + a b/c = S⇔D như máy thật)
         addShiftKey(p);
         addKey(p, "MODE", null, FN, this::cycleAngleMode, null);
-        addKey(p, "S⇔D", null, FN, this::toggleFraction, null);
-        addKey(p, "◄", null, FN, () -> moveCaret(-1), null);
-        addKey(p, "►", null, FN, () -> moveCaret(1), null);
+        addKey(p, "a b/c", "S⇔D", FN, () -> insert(FRAC), this::toggleFraction);
+        addKey(p, "◄", null, FN, () -> input.moveCaret(-1), null);
+        addKey(p, "►", null, FN, () -> input.moveCaret(1), null);
         addKey(p, "DEC", null, FN, this::cycleBase, null);
 
         // Hàng 2: lượng giác, log
@@ -201,7 +170,7 @@ public class CalculatorUI extends JFrame {
         addKey(p, "sinh", null, FN, () -> insert("sinh("), null);
         addKey(p, "cosh", null, FN, () -> insert("cosh("), null);
         addKey(p, "tanh", null, FN, () -> insert("tanh("), null);
-        addKey(p, "x²", "x³", FN, () -> insert("^2"), () -> insert("^3"));
+        addKey(p, "x²", "x³", FN, () -> insert("^2" + EXP_END), () -> insert("^3" + EXP_END));
         addKey(p, "x^y", "n√x", FN, () -> insert("^("), () -> insert("root"));
         addKey(p, "√", "³√x", FN, () -> insert("√("), () -> insert("cbrt("));
 
@@ -310,6 +279,18 @@ public class CalculatorUI extends JFrame {
         }
     }
 
+    // ================================================================ MENU mở rộng
+    private void toggleMenu() {
+        menuOpen = !menuOpen;
+        menuPanel.setVisible(menuOpen);
+        if (menuOpen) menuPanel.showList();
+        menuButton.setText(menuOpen ? MENU_OPEN : MENU_CLOSED);
+        int delta = MenuPanel.WIDTH + 10;
+        setSize(getWidth() + (menuOpen ? delta : -delta), getHeight());
+        revalidate();
+        repaint();
+    }
+
     // ================================================================ thao tác
     private void insert(String text) {
         if (justEvaluated) {
@@ -329,92 +310,15 @@ public class CalculatorUI extends JFrame {
 
     private void backspace() {
         justEvaluated = false;
-        int pos = input.getCaretPosition();
-        if (pos == 0) return;
-        String text = input.getText();
-        String before = text.substring(0, pos);
-        int remove = 1;
-        for (String t : WHOLE_TOKENS) {
-            if (before.endsWith(t)) {
-                remove = t.length();
-                break;
-            }
-        }
-        String newBefore = text.substring(0, pos - remove);
-        if (newBefore.endsWith("^")) {                 // '^' đang bị ẩn nên xoá luôn
-            newBefore = newBefore.substring(0, newBefore.length() - 1);
-        }
-        input.setText(newBefore + text.substring(pos));
-        input.setCaretPosition(newBefore.length());
-    }
-
-    private void moveCaret(int delta) {
-        String t = input.getText();
-        int pos = Math.max(0, Math.min(t.length(), input.getCaretPosition() + delta));
-        // bỏ qua ký tự '^' đang bị ẩn
-        if (delta < 0 && pos > 0 && t.charAt(pos - 1) == '^') pos--;
-        else if (delta > 0 && pos > 0 && pos < t.length() && t.charAt(pos - 1) == '^') pos++;
-        input.setCaretPosition(pos);
-    }
-
-    // ================================================================ hiển thị số mũ
-    private void scheduleRestyle() {
-        if (restylePending) return;
-        restylePending = true;
-        SwingUtilities.invokeLater(() -> {
-            restylePending = false;
-            restyle();
-        });
-    }
-
-    /** Đặt kiểu chữ: số mũ (sau dấu ^) nhỏ và nâng lên, dấu ^ được ẩn. */
-    private void restyle() {
-        StyledDocument doc = input.getStyledDocument();
-        String t;
-        try {
-            t = doc.getText(0, doc.getLength());
-        } catch (BadLocationException e) {
-            return;
-        }
-        doc.setCharacterAttributes(0, t.length(), STYLE_NORMAL, true);
-        int i = 0;
-        while (i < t.length()) {
-            if (t.charAt(i) == '^') {
-                int end = exponentEnd(t, i + 1);
-                doc.setCharacterAttributes(i, 1, STYLE_HIDDEN, true);
-                if (end > i + 1) doc.setCharacterAttributes(i + 1, end - i - 1, STYLE_SUPER, true);
-                i = Math.max(end, i + 1);
-            } else {
-                i++;
-            }
-        }
-    }
-
-    /** Vị trí kết thúc của số mũ bắt đầu tại p: [-]số, [-](...) hoặc π. */
-    static int exponentEnd(String t, int p) {
-        int n = t.length();
-        int i = p;
-        if (i < n && t.charAt(i) == '-') i++;
-        if (i < n && t.charAt(i) == '(') {
-            int depth = 0;
-            while (i < n) {
-                char c = t.charAt(i++);
-                if (c == '(') depth++;
-                else if (c == ')' && --depth == 0) break;
-            }
-            return i;
-        }
-        int start = i;
-        while (i < n && (Character.isDigit(t.charAt(i)) || t.charAt(i) == '.')) i++;
-        if (i == start && i < n && t.charAt(i) == 'π') i++;
-        return i;
+        input.backspace();
     }
 
     private void clearAll() {
         input.setText("");
-        result.setText("0");
+        result.showText("0");
         lastResult = null;
         justEvaluated = false;
+        fractionView = false;
     }
 
     private void calculate() {
@@ -424,13 +328,15 @@ public class CalculatorUI extends JFrame {
         try {
             lastResult = calc.evaluate(expr);
             justEvaluated = true;
+            // nhập bằng phân số thì kết quả cũng hiện dạng phân số (nếu được)
+            fractionView = expr.indexOf(Symbols.FRACTION_SLASH) >= 0;
             refreshResult();
         } catch (CalcException ex) {
             lastResult = null;
-            result.setText(ex.getMessage());
+            result.showText(ex.getMessage());
         } catch (RuntimeException ex) {
             lastResult = null;
-            result.setText("Syntax ERROR");
+            result.showText("Syntax ERROR");
         }
         updateStatus();
     }
@@ -439,18 +345,24 @@ public class CalculatorUI extends JFrame {
         if (lastResult == null) return;
         try {
             int base = BASE_VALUES[baseIndex];
-            String text;
             if (base != 10) {
-                text = Calculator.toBase(lastResult, base);
-            } else if (fractionView) {
-                String frac = Calculator.toFraction(lastResult);
-                text = frac != null ? frac : Calculator.format(lastResult);
-            } else {
-                text = Calculator.format(lastResult);
+                result.showText(Calculator.toBase(lastResult, base));
+                return;
             }
-            result.setText(text);
+            long[] f = fractionView ? Calculator.fraction(lastResult) : null;
+            if (f == null) {
+                result.showText(Calculator.format(lastResult));
+                return;
+            }
+            long whole = f[0] / f[1];
+            long rest = f[0] % f[1];
+            if (whole > 0 && rest != 0) {
+                result.showFraction(lastResult < 0, whole, rest, f[1]);       // hỗn số
+            } else {
+                result.showFraction(lastResult < 0, 0, f[0], f[1]);           // phân số
+            }
         } catch (CalcException ex) {
-            result.setText(ex.getMessage());
+            result.showText(ex.getMessage());
         }
     }
 
