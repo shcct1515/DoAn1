@@ -5,7 +5,7 @@ import com.calculator.calculator.Calculator;
 import javax.swing.JComponent;
 
 /**
- * Một chức năng mở rộng của máy tính (giải phương trình, hệ phương trình, ...).
+ * Các chức năng trong ứng dụng
  */
 public interface Feature {
     /** Tên hiển thị trong menu. */

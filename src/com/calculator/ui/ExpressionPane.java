@@ -1,6 +1,7 @@
 package com.calculator.ui;
 
 import com.calculator.model.Symbols;
+import com.calculator.settings.Theme;
 
 import javax.swing.BorderFactory;
 import javax.swing.JTextPane;
@@ -18,6 +19,7 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.geom.Rectangle2D;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,9 +31,6 @@ import java.util.regex.Pattern;
  * - Phím ► ở cuối số mũ sẽ thoát khỏi số mũ.
  */
 public class ExpressionPane extends JTextPane {
-    static final Color LCD = new Color(0xc5d0b5);
-    static final Color LCD_FG = new Color(0x1d2318);
-
     private static final char CARET = '^';
     private static final char FRAC = Symbols.FRACTION_SLASH;
     private static final char END = Symbols.EXPONENT_END;
@@ -43,13 +42,8 @@ public class ExpressionPane extends JTextPane {
             "sin(", "cos(", "tan(", "log(", "exp(", "abs(", "ln(", "√(",
             "Ans", "root", "nPr", "nCr"};
 
-    // ---- kiểu chữ
-    private static final SimpleAttributeSet NORMAL = style(22, false, false, LCD_FG);
-    private static final SimpleAttributeSet SUPER = style(18, true, false, LCD_FG);
-    private static final SimpleAttributeSet SUB = style(18, false, true, LCD_FG);
-    private static final SimpleAttributeSet SLASH = style(18, false, false, LCD_FG);
-    private static final SimpleAttributeSet GAP = style(10, false, false, LCD);      // khoảng trống giữa số nguyên và phân số
-    private static final SimpleAttributeSet HIDDEN = style(2, false, false, LCD);    // ký tự ẩn (^ và dấu kết thúc số mũ)
+    // ---- kiểu chữ (tạo lại mỗi khi đổi giao diện hoặc cỡ chữ)
+    private SimpleAttributeSet normal, superscript, subscript, slash, gap, hidden;
 
     private static SimpleAttributeSet style(int size, boolean sup, boolean sub, Color fg) {
         SimpleAttributeSet a = new SimpleAttributeSet();
@@ -63,14 +57,11 @@ public class ExpressionPane extends JTextPane {
     }
 
     private boolean restylePending = false;
+    private Consumer<String> insertHook;
 
     public ExpressionPane() {
-        setFont(new Font(Font.MONOSPACED, Font.PLAIN, 22));
-        setBackground(LCD);
-        setForeground(LCD_FG);
-        setCaretColor(LCD_FG);
         setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
-        setCharacterAttributes(NORMAL, true);
+        applyTheme(Theme.classic(), 22);
 
         ExponentCaret caret = new ExponentCaret();
         caret.setBlinkRate(500);
@@ -81,6 +72,42 @@ public class ExpressionPane extends JTextPane {
             @Override public void removeUpdate(DocumentEvent e)  { scheduleRestyle(); }
             @Override public void changedUpdate(DocumentEvent e) { }
         });
+    }
+
+    /** Đổi màu và cỡ chữ theo giao diện. */
+    public void applyTheme(Theme t, int size) {
+        Color bg = t.get("lcd");
+        Color fg = t.get("lcdText");
+        int small = Math.max(10, size - 4);
+        normal = style(size, false, false, fg);
+        superscript = style(small, true, false, fg);
+        subscript = style(small, false, true, fg);
+        slash = style(small, false, false, fg);
+        gap = style(Math.max(6, size * 10 / 22), false, false, bg);
+        hidden = style(2, false, false, bg);
+
+        setFont(new Font(Font.MONOSPACED, Font.PLAIN, size));
+        setBackground(bg);
+        setForeground(fg);
+        setCaretColor(fg);
+        setCharacterAttributes(normal, true);
+        restyle();
+        repaint();
+    }
+
+    /** Hàm được gọi ngay trước khi chèn chữ (từ phím bấm hoặc bàn phím), để xử lý sau dấu "=". */
+    public void setInsertHook(Consumer<String> hook) {
+        this.insertHook = hook;
+    }
+
+    /** Chèn chữ tại con trỏ; không cho xuống dòng. */
+    @Override
+    public void replaceSelection(String content) {
+        if (content == null) return;
+        content = content.replace("\n", "").replace("\r", "");
+        if (content.isEmpty()) return;
+        if (insertHook != null) insertHook.accept(content);
+        super.replaceSelection(content);
     }
 
     /** Không xuống dòng: chỉ cuộn ngang khi biểu thức dài hơn màn hình. */
@@ -176,19 +203,19 @@ public class ExpressionPane extends JTextPane {
             return;
         }
         int n = t.length();
-        doc.setCharacterAttributes(0, n, NORMAL, true);
+        doc.setCharacterAttributes(0, n, normal, true);
 
         // số mũ
         boolean[] inExponent = new boolean[n];
         for (int i = 0; i < n; i++) {
             char c = t.charAt(i);
             if (c == END) {
-                doc.setCharacterAttributes(i, 1, HIDDEN, true);
+                doc.setCharacterAttributes(i, 1, hidden, true);
             } else if (c == CARET) {
-                doc.setCharacterAttributes(i, 1, HIDDEN, true);
+                doc.setCharacterAttributes(i, 1, hidden, true);
                 ExpSpan sp = exponentSpan(t, i + 1);
                 if (sp.end > i + 1) {
-                    doc.setCharacterAttributes(i + 1, sp.end - i - 1, SUPER, true);
+                    doc.setCharacterAttributes(i + 1, sp.end - i - 1, superscript, true);
                     for (int k = i + 1; k < sp.end; k++) inExponent[k] = true;
                 }
             }
@@ -199,14 +226,14 @@ public class ExpressionPane extends JTextPane {
         while (m.find()) {
             if (inExponent[m.start()]) continue;
             if (m.group(3) != null) {                     // hỗn số a⁄b⁄c
-                set(doc, m.end(1), 1, GAP);
-                set(doc, m.start(2), m.end(2) - m.start(2), SUPER);
-                set(doc, m.end(2), 1, SLASH);
-                set(doc, m.start(3), m.end(3) - m.start(3), SUB);
+                set(doc, m.end(1), 1, gap);
+                set(doc, m.start(2), m.end(2) - m.start(2), superscript);
+                set(doc, m.end(2), 1, slash);
+                set(doc, m.start(3), m.end(3) - m.start(3), subscript);
             } else {                                      // phân số a⁄b
-                set(doc, m.start(1), m.end(1) - m.start(1), SUPER);
-                set(doc, m.end(1), 1, SLASH);
-                set(doc, m.start(2), m.end(2) - m.start(2), SUB);
+                set(doc, m.start(1), m.end(1) - m.start(1), superscript);
+                set(doc, m.end(1), 1, slash);
+                set(doc, m.start(2), m.end(2) - m.start(2), subscript);
             }
         }
     }

@@ -10,7 +10,7 @@ import java.util.Set;
 
 /**
  * Parse chuỗi biểu thức thành danh sách Token.
- * Hỗ trợ: số thập phân, + - × ÷ ^, số âm (neg), ngoặc, hàm, hằng số (pi, e, Ans, M),
+ * Hỗ trợ: số thập phân, + - × ÷ ^, số âm (neg), ngoặc, hàm, hằng số và biến (pi, e, Ans, M, A-F, X, Y),
  * phép nhân ngầm (2(3), 2π, 3sin(30)), toán tử hậu tố ! và %,
  * phân số 3⁄4 (ba phần tư) và hỗn số 2⁄3⁄4 (hai và ba phần tư).
  */
@@ -18,7 +18,8 @@ public class Tokenizer {
     private static final Set<String> FUNCTIONS = Set.of(
             "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
             "log", "ln", "exp", "sqrt", "cbrt", "abs");
-    private static final Set<String> CONSTANTS = Set.of("pi", "e", "Ans", "M");
+    private static final Set<String> CONSTANTS = Set.of("pi", "e", "Ans", "M",
+            "A", "B", "C", "D", "E", "F", "X", "Y");
     private static final Set<String> BINARY_WORDS = Set.of("root", "nPr", "nCr");
 
     /** Tất cả tên, sắp xếp dài trước để khớp "sinh" trước "sin", "exp" trước "e". */

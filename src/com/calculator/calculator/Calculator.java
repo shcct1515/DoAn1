@@ -3,6 +3,7 @@ package com.calculator.calculator;
 import com.calculator.evaluator.RPNEvaluator;
 import com.calculator.model.AngleMode;
 import com.calculator.model.CalcException;
+import com.calculator.model.DisplayMode;
 import com.calculator.model.Token;
 import com.calculator.parser.RPNConverter;
 import com.calculator.parser.Tokenizer;
@@ -10,7 +11,9 @@ import com.calculator.parser.Tokenizer;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Điều phối quá trình: Tokenizer → RPNConverter → RPNEvaluator.
@@ -21,8 +24,16 @@ public class Calculator {
     private final RPNConverter converter = new RPNConverter();
     private final RPNEvaluator evaluator = new RPNEvaluator();
 
+    /** Tên các biến người dùng có thể lưu giá trị (STO). M là bộ nhớ. */
+    public static final String[] VARIABLES = {"A", "B", "C", "D", "E", "F", "X", "Y", "M"};
+
     private double ans = 0;
     private double memory = 0;
+    private final Map<String, Double> variables = new LinkedHashMap<>();
+
+    // Cách hiển thị kết quả (dùng chung cho toàn chương trình)
+    private static DisplayMode displayMode = DisplayMode.NORM;
+    private static int displayDigits = 10;
 
     public void setAngleMode(AngleMode mode) {
         evaluator.setAngleMode(mode);
@@ -31,6 +42,9 @@ public class Calculator {
     public double evaluate(String expression) {
         evaluator.setVariable("Ans", ans);
         evaluator.setVariable("M", memory);
+        for (Map.Entry<String, Double> e : variables.entrySet()) {
+            evaluator.setVariable(e.getKey(), e.getValue());
+        }
         List<Token> tokens = tokenizer.tokenize(expression);
         List<Token> rpn = converter.toRPN(tokens);
         double result = evaluator.evaluate(rpn);
@@ -48,6 +62,18 @@ public class Calculator {
         return sb.toString();
     }
 
+    // ---------------------------------------------------------------- biến
+    /** Lưu giá trị vào biến A-F, X, Y hoặc M (bộ nhớ). */
+    public void setVariable(String name, double value) {
+        if (name.equals("M")) memory = value;
+        else variables.put(name, value);
+    }
+
+    public double getVariable(String name) {
+        if (name.equals("M")) return memory;
+        return variables.getOrDefault(name, 0.0);
+    }
+
     // ---------------------------------------------------------------- bộ nhớ
     public void memoryPlus(double v)  { memory += v; }
     public void memoryMinus(double v) { memory -= v; }
@@ -56,15 +82,42 @@ public class Calculator {
     public double getAns()            { return ans; }
 
     // ---------------------------------------------------------------- hiển thị
+    /** Chọn cách hiển thị: NORM/SCI = số chữ số có nghĩa, FIX = số chữ số thập phân. */
+    public static void setDisplayFormat(DisplayMode mode, int digits) {
+        displayMode = mode;
+        displayDigits = digits;
+    }
 
+    /** Định dạng kết quả theo chế độ hiển thị hiện tại (mặc định Norm, 10 chữ số có nghĩa). */
     public static String format(double v) {
-        if (v == 0 || Double.isNaN(v)) return "0";
-        BigDecimal bd = new BigDecimal(v).round(new MathContext(10, RoundingMode.HALF_UP)).stripTrailingZeros();
+        if (Double.isNaN(v)) return "0";
+        switch (displayMode) {
+            case FIX: return formatFix(v, displayDigits);
+            case SCI: return formatSci(v, displayDigits);
+            default:  return formatNorm(v, displayDigits);
+        }
+    }
+
+    private static String formatNorm(double v, int digits) {
+        if (v == 0) return "0";
+        BigDecimal bd = new BigDecimal(v).round(new MathContext(digits, RoundingMode.HALF_UP)).stripTrailingZeros();
         double abs = Math.abs(v);
-        if (abs >= 1e10 || abs < 1e-9) {
+        if (abs >= Math.pow(10, digits) || abs < 1e-9) {
             return bd.toString().replace("E+", "×10^").replace("E-", "×10^-");
         }
         return bd.toPlainString();
+    }
+
+    private static String formatFix(double v, int decimals) {
+        return new BigDecimal(v).setScale(decimals, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private static String formatSci(double v, int digits) {
+        if (v == 0) return "0";
+        BigDecimal bd = new BigDecimal(v).round(new MathContext(Math.max(1, digits), RoundingMode.HALF_UP));
+        int exp = bd.precision() - bd.scale() - 1;
+        String mantissa = bd.movePointLeft(exp).setScale(Math.max(1, digits) - 1, RoundingMode.HALF_UP).toPlainString();
+        return mantissa + "×10^" + exp;
     }
 
     /**

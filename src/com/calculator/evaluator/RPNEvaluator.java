@@ -20,6 +20,7 @@ public class RPNEvaluator {
         variables.put("e", Math.E);
         variables.put("Ans", 0.0);
         variables.put("M", 0.0);
+        for (String v : new String[]{"A", "B", "C", "D", "E", "F", "X", "Y"}) variables.put(v, 0.0);
     }
 
     public void setAngleMode(AngleMode mode) { this.angleMode = mode; }
@@ -143,7 +144,7 @@ public class RPNEvaluator {
         }
     }
 
-    /** Loại nhiễu số học, sin(180°) = 1.2e-16 → 0. */
+    /** Loại nhiễu số học, ví dụ sin(180°) = 1.2e-16 → 0. */
     private static double snap(double v) {
         return Math.abs(v) < 1e-14 ? 0 : v;
     }

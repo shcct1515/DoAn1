@@ -3,6 +3,7 @@ package com.calculator;
 import com.calculator.calculator.Calculator;
 import com.calculator.model.AngleMode;
 import com.calculator.model.CalcException;
+import com.calculator.model.DisplayMode;
 
 /** Test đơn giản (không cần JUnit): chạy bằng `java com.calculator.CalculatorTest`. */
 public class CalculatorTest {
@@ -90,6 +91,31 @@ public class CalculatorTest {
         String e = "\u200B";
         check(c, "2^2" + e + "3", "12");
         check(c, "2^23", "8388608");
+        // Biến A-F, X, Y (STO) và bộ nhớ M
+        c.setVariable("A", 5);
+        c.setVariable("B", 3);
+        c.setVariable("M", 2);
+        check(c, "A×2", "10");
+        check(c, "2A", "10");
+        check(c, "A+B", "8");
+        check(c, "A^B", "125");
+        check(c, "M+A", "7");
+        check(c, "C+1", "1");
+        // Kiểu hiển thị Fix / Sci / Norm
+        Calculator.setDisplayFormat(DisplayMode.FIX, 2);
+        eq("fix 2", "3.14", Calculator.format(3.14159));
+        Calculator.setDisplayFormat(DisplayMode.FIX, 0);
+        eq("fix 0", "3", Calculator.format(2.6 + 0.4));
+        Calculator.setDisplayFormat(DisplayMode.FIX, 2);
+        eq("fix neg", "-0.50", Calculator.format(-0.5));
+        Calculator.setDisplayFormat(DisplayMode.SCI, 3);
+        eq("sci 12345.678", "1.23×10^4", Calculator.format(12345.678));
+        eq("sci 0.000123", "1.23×10^-4", Calculator.format(0.000123));
+        eq("sci 9.999", "1.00×10^1", Calculator.format(9.9999));
+        Calculator.setDisplayFormat(DisplayMode.NORM, 6);
+        eq("norm 6", "0.333333", Calculator.format(1.0 / 3));
+        Calculator.setDisplayFormat(DisplayMode.NORM, 10);
+        eq("norm 10", "0.3333333333", Calculator.format(1.0 / 3));
         // Hiển thị
         long[] fr = Calculator.fraction(2.75);
         eq("fraction parts", "11/4", fr == null ? null : fr[0] + "/" + fr[1]);

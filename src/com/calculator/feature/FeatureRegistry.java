@@ -1,5 +1,7 @@
 package com.calculator.feature;
 
+import com.calculator.feature.impl.*;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,14 +11,15 @@ public final class FeatureRegistry {
     private static final List<Feature> FEATURES = new ArrayList<>();
 
     static {
-        register(new PlaceholderFeature("Giải phương trình", "Bậc 2, bậc 3, ..."));
-        register(new PlaceholderFeature("Giải hệ phương trình", "Hệ 2 ẩn, 3 ẩn"));
-        register(new PlaceholderFeature("Giải bất phương trình", "Bậc 2, bậc 3, ..."));
-        register(new PlaceholderFeature("Số phức", "Tính toán với số phức"));
-        register(new PlaceholderFeature("Ma trận", "Cộng, nhân, định thức, nghịch đảo"));
-        register(new PlaceholderFeature("Vector", "Tích vô hướng, tích có hướng"));
-        register(new PlaceholderFeature("Thống kê", "Trung bình, phương sai, hồi quy"));
-        register(new PlaceholderFeature("Bảng giá trị hàm", "Bảng giá trị f(x)"));
+        // Thêm chức năng mới: tạo class extends AbstractFeature trong feature/impl rồi register tại đây.
+        register(new EquationFeature());
+        register(new SystemFeature());
+        register(new InequalityFeature());
+        register(new ComplexFeature());
+        register(new MatrixFeature());
+        register(new VectorFeature());
+        register(new StatisticsFeature());
+        register(new TableFeature());
     }
 
     private FeatureRegistry() {
