@@ -3,63 +3,62 @@ package com.calculator.feature.impl;
 import com.calculator.calculator.Calculator;
 import com.calculator.feature.AbstractFeature;
 
+import java.util.List;
+
 public class ComplexFeature extends AbstractFeature {
-    public ComplexFeature() {
-        super("Số phức", "Cộng, trừ, nhân, chia, luỹ thừa",
-                "z1 (vd 3+4i)", "z2 (vd 1-2i; với ^ nhập số mũ nguyên)", "Phép toán (+, -, *, /, ^)");
+    private final String op;
+
+    public ComplexFeature(String op) {
+        super("Số phức: " + title(op), labels(op));
+        this.op = op;
     }
 
-    /** Đọc "a+bi" thành {a, b}. */
-    private static double[] parse(Calculator calc, String text) {
-        String s = text.replace(" ", "");
-        if (s.isEmpty()) throw new IllegalArgumentException("Thiếu số phức");
-        double re = 0, im = 0;
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[+-]?[^+-]+").matcher(s);
-        while (m.find()) {
-            String t = m.group();
-            if (t.endsWith("i")) {
-                String k = t.substring(0, t.length() - 1);
-                if (k.isEmpty() || k.equals("+")) im += 1;
-                else if (k.equals("-")) im -= 1;
-                else im += calc.evaluate(k.startsWith("+") ? k.substring(1) : k);
-            } else {
-                re += calc.evaluate(t.startsWith("+") ? t.substring(1) : t);
-            }
+    private static String title(String op) {
+        switch (op) {
+            case "add": return "z1 + z2";
+            case "sub": return "z1 − z2";
+            case "mul": return "z1 × z2";
+            case "div": return "z1 ÷ z2";
+            case "pow": return "z^n";
+            default: return "Mô-đun/Arg";
         }
-        return new double[]{re, im};
+    }
+
+    private static String[] labels(String op) {
+        switch (op) {
+            case "pow": return new String[]{"Re z", "Im z", "n"};
+            case "modarg": return new String[]{"Re z", "Im z"};
+            default: return new String[]{"Re z1", "Im z1", "Re z2", "Im z2"};
+        }
     }
 
     @Override
-    protected String solve(String[] in, Calculator calc) {
-        double[] a = parse(calc, in[0]), b = parse(calc, in[1]);
+    public String solve(List<String> in, Calculator calc) {
+        double a = val(calc, in, 0), b = val(calc, in, 1);
+        double c = in.size() > 2 ? val(calc, in, 2) : 0, d = in.size() > 3 ? val(calc, in, 3) : 0;
         double re, im;
-        switch (in[2].trim()) {
-            case "+": re = a[0] + b[0]; im = a[1] + b[1]; break;
-            case "-": re = a[0] - b[0]; im = a[1] - b[1]; break;
-            case "*":
-                re = a[0] * b[0] - a[1] * b[1];
-                im = a[0] * b[1] + a[1] * b[0];
-                break;
-            case "/": {
-                double d = b[0] * b[0] + b[1] * b[1];
-                if (d < MathUtil.EPS) throw new IllegalArgumentException("Chia cho 0");
-                re = (a[0] * b[0] + a[1] * b[1]) / d;
-                im = (a[1] * b[0] - a[0] * b[1]) / d;
+        switch (op) {
+            case "add": re = a + c; im = b + d; break;
+            case "sub": re = a - c; im = b - d; break;
+            case "mul": re = a * c - b * d; im = a * d + b * c; break;
+            case "div": {
+                double den = c * c + d * d;
+                if (den < MathUtil.EPS) throw new IllegalArgumentException("Math ERROR (chia 0)");
+                re = (a * c + b * d) / den;
+                im = (b * c - a * d) / den;
                 break;
             }
-            case "^": {
-                double r = Math.pow(Math.hypot(a[0], a[1]), b[0]);
-                double th = Math.atan2(a[1], a[0]) * b[0];
+            case "pow": {
+                double r = Math.pow(Math.hypot(a, b), c), th = Math.atan2(b, a) * c;
                 re = r * Math.cos(th);
                 im = r * Math.sin(th);
                 break;
             }
-            default: throw new IllegalArgumentException("Phép toán phải là + - * / ^");
+            default: re = a; im = b;
         }
         double mod = Math.hypot(re, im), arg = Math.atan2(im, re);
-        return "Kết quả = " + MathUtil.cx(re, im)
-                + "\nLiên hợp = " + MathUtil.cx(re, -im)
+        return "= " + MathUtil.cx(re, im) + "\nLiên hợp: " + MathUtil.cx(re, -im)
                 + "\n|z| = " + MathUtil.f(mod)
-                + "\narg = " + MathUtil.f(arg) + " rad = " + MathUtil.f(Math.toDegrees(arg)) + "°";
+                + "\narg = " + MathUtil.f(Math.toDegrees(arg)) + "° (" + MathUtil.f(arg) + " rad)";
     }
 }

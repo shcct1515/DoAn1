@@ -3,59 +3,63 @@ package com.calculator.feature.impl;
 import com.calculator.calculator.Calculator;
 import com.calculator.feature.AbstractFeature;
 
+import java.util.List;
+
 public class MatrixFeature extends AbstractFeature {
-    public MatrixFeature() {
-        super("Ma trận", "Cộng, nhân, định thức, nghịch đảo",
-                "Ma trận A (hàng cách nhau ;  vd 1 2;3 4)", "Ma trận B (chỉ cần cho + - *)",
-                "Phép toán (+, -, *, det, inv, T, rank)");
+    private final String op;
+    private final int n;
+
+    public MatrixFeature(String op, int n) {
+        super("Ma trận " + n + "×" + n + ": " + op.replace("add", "A+B").replace("mul", "A×B")
+                .replace("det", "det A").replace("inv", "A⁻¹"), labels(op, n));
+        this.op = op;
+        this.n = n;
+    }
+
+    private static String[] labels(String op, int n) {
+        boolean two = op.equals("add") || op.equals("mul");
+        String[] r = new String[two ? 2 * n * n : n * n];
+        for (int k = 0; k < r.length; k++) {
+            int cell = k % (n * n);
+            r[k] = (k < n * n ? "A" : "B") + (cell / n + 1) + (cell % n + 1);
+        }
+        return r;
+    }
+
+    private double[][] read(Calculator calc, List<String> in, int offset) {
+        double[][] m = new double[n][n];
+        for (int i = 0; i < n; i++) for (int j = 0; j < n; j++) m[i][j] = val(calc, in, offset + i * n + j);
+        return m;
     }
 
     @Override
-    protected String solve(String[] in, Calculator calc) {
-        double[][] a = MathUtil.matrix(calc, in[0]);
-        String op = in[2].trim().toLowerCase();
-        int n = a.length, m = a[0].length;
+    public String solve(List<String> in, Calculator calc) {
+        double[][] a = read(calc, in, 0);
         switch (op) {
             case "det": {
-                if (n != m) throw new IllegalArgumentException("Cần ma trận vuông");
                 double[] d = new double[1];
                 MathUtil.rank(a, d);
-                return "det = " + MathUtil.f(d[0]);
+                return "det A = " + MathUtil.f(d[0]);
             }
             case "inv": {
-                if (n != m) throw new IllegalArgumentException("Cần ma trận vuông");
                 double[][] id = new double[n][n];
                 for (int i = 0; i < n; i++) id[i][i] = 1;
                 double[][] r = MathUtil.gaussJordan(a, id);
-                if (r == null) throw new IllegalArgumentException("Ma trận không khả nghịch (det = 0)");
+                if (r == null) throw new IllegalArgumentException("Math ERROR (det = 0)");
                 return MathUtil.show(r);
             }
-            case "t": {
-                double[][] r = new double[m][n];
-                for (int i = 0; i < n; i++) for (int j = 0; j < m; j++) r[j][i] = a[i][j];
+            case "add": {
+                double[][] b = read(calc, in, n * n), r = new double[n][n];
+                for (int i = 0; i < n; i++) for (int j = 0; j < n; j++) r[i][j] = a[i][j] + b[i][j];
                 return MathUtil.show(r);
             }
-            case "rank":
-                return "Hạng = " + MathUtil.rank(a, null);
-            case "+": case "-": {
-                double[][] b = MathUtil.matrix(calc, in[1]);
-                if (b.length != n || b[0].length != m) throw new IllegalArgumentException("Hai ma trận khác cỡ");
-                double s = op.equals("+") ? 1 : -1;
-                double[][] r = new double[n][m];
-                for (int i = 0; i < n; i++) for (int j = 0; j < m; j++) r[i][j] = a[i][j] + s * b[i][j];
-                return MathUtil.show(r);
-            }
-            case "*": {
-                double[][] b = MathUtil.matrix(calc, in[1]);
-                if (b.length != m) throw new IllegalArgumentException("Số cột A phải bằng số hàng B");
-                double[][] r = new double[n][b[0].length];
+            default: {
+                double[][] b = read(calc, in, n * n), r = new double[n][n];
                 for (int i = 0; i < n; i++)
-                    for (int j = 0; j < b[0].length; j++)
-                        for (int k = 0; k < m; k++) r[i][j] += a[i][k] * b[k][j];
+                    for (int j = 0; j < n; j++)
+                        for (int k = 0; k < n; k++) r[i][j] += a[i][k] * b[k][j];
                 return MathUtil.show(r);
             }
-            default:
-                throw new IllegalArgumentException("Phép toán: + - * det inv T rank");
         }
     }
 }

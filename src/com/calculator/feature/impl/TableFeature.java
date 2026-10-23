@@ -3,20 +3,30 @@ package com.calculator.feature.impl;
 import com.calculator.calculator.Calculator;
 import com.calculator.feature.AbstractFeature;
 
+import java.util.List;
+
 public class TableFeature extends AbstractFeature {
     public TableFeature() {
-        super("Bảng giá trị hàm", "Bảng giá trị f(x)", "f(x) (dùng biến X, vd X^2+1)", "Từ x", "Đến x", "Bước");
+        super("Bảng giá trị f(X)", "f(X)", "Start", "End", "Step");
     }
 
     @Override
-    protected String solve(String[] in, Calculator calc) {
-        String expr = in[0].trim();
-        if (expr.isEmpty()) throw new IllegalArgumentException("Chưa nhập f(x)");
-        double from = calc.evaluate(in[1].trim()), to = calc.evaluate(in[2].trim()), step = calc.evaluate(in[3].trim());
-        if (step <= 0 || to < from) throw new IllegalArgumentException("Cần Từ ≤ Đến và Bước > 0");
-        if ((to - from) / step > 200) throw new IllegalArgumentException("Tối đa 200 dòng, hãy tăng bước");
+    public void check(int index, String value, Calculator calc) {
+        if (index == 0) {
+            if (value.isBlank()) throw new IllegalArgumentException("Chưa nhập f(X)");
+            return;     // f(X) chứa biến X nên không tính thử ở đây
+        }
+        super.check(index, value, calc);
+    }
+
+    @Override
+    public String solve(List<String> in, Calculator calc) {
+        String expr = in.get(0).trim();
+        double from = val(calc, in, 1), to = val(calc, in, 2), step = val(calc, in, 3);
+        if (step <= 0 || to < from) throw new IllegalArgumentException("Start ≤ End và Step > 0");
+        if ((to - from) / step > 200) throw new IllegalArgumentException("Tối đa 200 dòng, tăng Step");
         double old = calc.getVariable("X");
-        StringBuilder sb = new StringBuilder("x\tf(x)\n");
+        StringBuilder sb = new StringBuilder();
         try {
             for (int i = 0; from + i * step <= to + 1e-12; i++) {
                 double x = from + i * step;
@@ -25,9 +35,9 @@ public class TableFeature extends AbstractFeature {
                 try {
                     y = MathUtil.f(calc.evaluate(expr));
                 } catch (Exception e) {
-                    y = "lỗi";
+                    y = "ERROR";
                 }
-                sb.append(MathUtil.f(x)).append("\t").append(y).append("\n");
+                sb.append("X=").append(MathUtil.f(x)).append("  f=").append(y).append("\n");
             }
         } finally {
             calc.setVariable("X", old);

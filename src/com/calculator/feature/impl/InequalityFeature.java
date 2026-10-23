@@ -8,16 +8,17 @@ import java.util.Collections;
 import java.util.List;
 
 public class InequalityFeature extends AbstractFeature {
-    public InequalityFeature() {
-        super("Giải bất phương trình", "Bậc 1, 2, 3",
-                "Hệ số từ cao xuống thấp (vd: 1 -3 2)", "Dấu so sánh với 0 (<, <=, >, >=)");
+    private final String op;
+
+    public InequalityFeature(int degree, String op) {
+        super(Arrays4.form(degree) + op.replace("<=", "≤").replace(">=", "≥") + "0", Arrays4.names(degree + 1));
+        this.op = op;
     }
 
     @Override
-    protected String solve(String[] in, Calculator calc) {
-        double[] c = MathUtil.nums(calc, in[0]);
-        String op = in[1].trim().replace("≤", "<=").replace("≥", ">=");
-        if (!op.matches("<=?|>=?")) throw new IllegalArgumentException("Dấu phải là <, <=, > hoặc >=");
+    public String solve(List<String> in, Calculator calc) {
+        double[] c = new double[in.size()];
+        for (int k = 0; k < c.length; k++) c[k] = val(calc, in, k);
         boolean less = op.startsWith("<"), eq = op.endsWith("=");
 
         List<Double> rt = new ArrayList<>();

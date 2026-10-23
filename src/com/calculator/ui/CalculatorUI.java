@@ -1,6 +1,7 @@
 package com.calculator.ui;
 
 import com.calculator.calculator.Calculator;
+import com.calculator.calculator.ComplexMath;
 import com.calculator.model.CalcException;
 import com.calculator.model.DisplayMode;
 import com.calculator.model.Symbols;
@@ -65,7 +66,6 @@ public class CalculatorUI extends JFrame {
     private final List<KeyButton> keys = new ArrayList<>();
     private final Map<String, ActionEntry> actions = new LinkedHashMap<>();
     private final List<KeyStroke> installedShortcuts = new ArrayList<>();
-    private final MenuPanel menuPanel = new MenuPanel(calc);
     private final List<String> history = new ArrayList<>();
 
     private JPanel root, keypad, lcdPanel;
@@ -73,6 +73,7 @@ public class CalculatorUI extends JFrame {
     private ReplayKey replay;
     private KeyButton shiftKey, alphaKey, modeKey, settingsKey, angleKey, baseKey;
     private SettingsDialog settingsDialog;
+    private ModeScreen screen;
 
     private boolean shift = false;
     private boolean alpha = false;
@@ -80,7 +81,8 @@ public class CalculatorUI extends JFrame {
     private double storeValue = 0;
     private boolean justEvaluated = false;
     private boolean fractionView = false;
-    private boolean menuOpen = false;
+    private boolean complexMode = false;
+    private double[] lastComplex = null;
     private int baseIndex = 0;
     private int historyPos = 0;
     private Double lastResult = null;
@@ -99,8 +101,6 @@ public class CalculatorUI extends JFrame {
         top.add(buildControlRow(), BorderLayout.SOUTH);
         root.add(top, BorderLayout.NORTH);
         root.add(buildKeypad(), BorderLayout.CENTER);
-        menuPanel.setVisible(false);
-        root.add(menuPanel, BorderLayout.EAST);
         setContentPane(root);
 
         input.setInsertHook(this::beforeInsert);
@@ -128,7 +128,9 @@ public class CalculatorUI extends JFrame {
 
         result.setAlignmentX(LEFT_ALIGNMENT);
 
+        screen = new ModeScreen(input, inputScroll, result, calc, this::modeAction);
         lcdPanel.add(status);
+        lcdPanel.add(screen.getView());
         lcdPanel.add(inputScroll);
         lcdPanel.add(result);
         return lcdPanel;
@@ -138,7 +140,7 @@ public class CalculatorUI extends JFrame {
     private JPanel buildControlRow() {
         shiftKey = createKey("shift", "SHIFT", Kind.SHIFT, null).title("SHIFT");
         alphaKey = createKey("alpha", "ALPHA", Kind.ALPHA, null).title("ALPHA");
-        modeKey = createKey("mode", "MODE", Kind.FN, this::toggleMenu).title("MODE (menu tính năng)");
+        modeKey = createKey("mode", "MODE", Kind.FN, screen::openMenu).title("MODE (menu tính năng)");
         settingsKey = createKey("settings", "SETTING", Kind.FN, this::openSettings).title("SETTING (cài đặt)");
 
         addAction("left", "◄  Con trỏ sang trái", () -> input.moveCaret(-1));
@@ -192,7 +194,7 @@ public class CalculatorUI extends JFrame {
         JPanel p = keypad;
 
         // Hàng 1
-        add(p, "abc", "a b/c", Kind.FN, ins(FRAC)).shift("S⇔D", this::toggleFraction);
+        add(p, "abc", "a b/c", Kind.FN, () -> input.insertFraction());
         angleKey = add(p, "angle", "DEG", Kind.FN, this::cycleAngle).title("Đơn vị góc (DEG / RAD / GRAD)");
         baseKey = add(p, "base", "DEC", Kind.FN, this::cycleBase).title("Hệ cơ số (DEC / HEX / BIN / OCT)");
         add(p, "fact", "x!", Kind.FN, ins("!"));
@@ -219,9 +221,11 @@ public class CalculatorUI extends JFrame {
         add(p, "pi", "π", Kind.FN, ins("π"));
         add(p, "e", "e", Kind.FN, ins("e"));
         add(p, "inv", "x⁻¹", Kind.FN, ins("^-1" + EXP_END));
-        add(p, "sto", "STO", Kind.FN, this::storeKey).title("STO (lưu vào biến, rồi bấm ALPHA + chữ)");
+        add(p, "sto", "S⇔D", Kind.FN, this::toggleFraction).shift("STO", this::storeKey).title("S⇔D (đổi thập phân ⇔ phân số); SHIFT + phím này = STO (lưu vào biến, rồi bấm chữ cái)");
         add(p, "mr", "MR", Kind.FN, ins("M"));
-        add(p, "mc", "MC", Kind.FN, calc::memoryClear);
+        add(p, "cplx", "i", Kind.FN, this::insertI).shift("MC", calc::memoryClear)
+                .title("i (số phức, tự bật chế độ CMPLX); SHIFT + i = MC");
+        addAction("mc", "MC (xoá bộ nhớ)", calc::memoryClear);
 
         // Hàng 5 - 8: bàn phím số
         add(p, "d7", "7", Kind.NUM, ins("7"));
@@ -291,6 +295,15 @@ public class CalculatorUI extends JFrame {
             return;
         }
 
+        if (screen.isActive() && screen.handleKey(k.id)) {
+            shift = false;
+            alpha = false;
+            pendingStore = false;
+            justEvaluated = false;
+            afterKey();
+            return;
+        }
+
         boolean alphaPress = alpha && k.alphaLetter != null;
         boolean shiftPress = !alphaPress && shift && k.shiftAction != null;
         Runnable run = shiftPress ? k.shiftAction : k.action;
@@ -316,7 +329,7 @@ public class CalculatorUI extends JFrame {
         Theme t = settings.getTheme();
         shiftKey.active = shift;
         alphaKey.active = alpha;
-        modeKey.highlight = menuOpen;
+        modeKey.highlight = screen.isActive();
         for (KeyButton k : keys) k.refresh(t, shift, alpha);
     }
 
@@ -424,15 +437,15 @@ public class CalculatorUI extends JFrame {
 
         inputScroll.getViewport().setBackground(lcd);
         inputScroll.setBackground(lcd);
-        Dimension d = new Dimension(100, size * 2);
+        Dimension d = new Dimension(100, size * 5 / 2);
         inputScroll.setPreferredSize(d);
         inputScroll.setMinimumSize(d);
-        inputScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, size * 2));
+        inputScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, size * 5 / 2));
 
         input.applyTheme(t, size);
         result.applyTheme(t, size);
         replay.applyColors(t.get("op"), Theme.textOn(t.get("op")));
-        menuPanel.applyTheme(t);
+        screen.applyTheme(t, size);
         refreshKeys();
         root.revalidate();
         root.repaint();
@@ -467,14 +480,24 @@ public class CalculatorUI extends JFrame {
     }
 
     // ================================================================ MODE (menu) và SETTING
-    private void toggleMenu() {
-        menuOpen = !menuOpen;
-        menuPanel.setVisible(menuOpen);
-        if (menuOpen) menuPanel.showList();
-        int delta = MenuPanel.WIDTH + 10;
-        setSize(getWidth() + (menuOpen ? delta : -delta), getHeight());
-        revalidate();
-        repaint();
+    /** Hành động từ menu MODE: "comp" (về tính toán thường), "base:n" (đổi hệ cơ số). */
+    private void insertI() {
+        complexMode = true;
+        insert("i");
+    }
+
+    private void modeAction(String id) {
+        if (id.equals("cmplx") || id.equals("comp")) {
+            complexMode = id.equals("cmplx");
+            lastComplex = null;
+            refreshResult();
+        }
+        if (id.startsWith("base:")) {
+            baseIndex = Integer.parseInt(id.substring(5));
+            baseKey.label = BASE_NAMES[baseIndex];
+            refreshResult();
+        }
+        justEvaluated = false;
     }
 
     private void openSettings() {
@@ -531,12 +554,14 @@ public class CalculatorUI extends JFrame {
     }
 
     private void historyUp() {
+        if (screen.scroll(-1) || input.moveVertical(-1)) return;
         if (history.isEmpty()) return;
         historyPos = Math.max(0, historyPos - 1);
         setExpression(history.get(historyPos));
     }
 
     private void historyDown() {
+        if (screen.scroll(1) || input.moveVertical(1)) return;
         if (history.isEmpty()) return;
         if (historyPos < history.size() - 1) {
             historyPos++;
@@ -553,11 +578,28 @@ public class CalculatorUI extends JFrame {
         if (expr.isEmpty()) return;
         calc.setAngleMode(settings.getAngleMode());
         try {
-            lastResult = calc.evaluate(expr);
+            if (complexMode) {
+                double[] prev = lastComplex != null ? lastComplex
+                        : new double[]{lastResult == null ? 0 : lastResult, 0};
+                lastComplex = ComplexMath.evaluate(expr, prev);
+                lastResult = lastComplex[0];
+                double mod = Math.hypot(lastComplex[0], lastComplex[1]);
+                double arg = Math.atan2(lastComplex[1], lastComplex[0]);
+                String unit = "";
+                switch (settings.getAngleMode()) {
+                    case DEG: arg = Math.toDegrees(arg); unit = "°"; break;
+                    case GRAD: arg = Math.toDegrees(arg) * 200 / 180; unit = "g"; break;
+                    default: unit = " rad";
+                }
+                statusNote = Math.abs(lastComplex[1]) < 1e-12 ? "" : "r=" + Calculator.format(mod) + "  ∠" + Calculator.format(arg) + unit;
+            } else {
+                lastComplex = null;
+                lastResult = calc.evaluate(expr);
+            }
             justEvaluated = true;
             addHistory(expr);
             // nhập bằng phân số thì kết quả cũng hiện dạng phân số (nếu được)
-            fractionView = settings.isAutoFraction() && expr.indexOf(Symbols.FRACTION_SLASH) >= 0;
+            fractionView = settings.isAutoFraction() && (expr.indexOf(Symbols.FRACTION_SLASH) >= 0 || expr.indexOf(Symbols.FRAC_OPEN) >= 0);
             refreshResult();
         } catch (CalcException ex) {
             lastResult = null;
@@ -577,6 +619,10 @@ public class CalculatorUI extends JFrame {
 
     private void refreshResult() {
         if (lastResult == null) return;
+        if (complexMode && lastComplex != null && Math.abs(lastComplex[1]) >= 1e-12) {
+            result.showText(ComplexMath.format(lastComplex));
+            return;
+        }
         try {
             int base = BASE_VALUES[baseIndex];
             if (base != 10) {
@@ -643,6 +689,8 @@ public class CalculatorUI extends JFrame {
         StringBuilder sb = new StringBuilder();
         if (shift) sb.append("S  ");
         if (alpha) sb.append(pendingStore ? "STO→  " : "A  ");
+        if (screen.isActive()) sb.append(screen.label()).append("  ");
+        if (complexMode) sb.append("CMPLX  ");
         sb.append(settings.getAngleMode()).append("  ").append(BASE_NAMES[baseIndex]);
         if (settings.getDisplayMode() != DisplayMode.NORM) {
             sb.append("  ").append(settings.getDisplayMode().name()).append(settings.getDigits());

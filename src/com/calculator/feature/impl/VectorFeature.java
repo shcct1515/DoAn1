@@ -3,11 +3,24 @@ package com.calculator.feature.impl;
 import com.calculator.calculator.Calculator;
 import com.calculator.feature.AbstractFeature;
 
+import java.util.List;
+
 public class VectorFeature extends AbstractFeature {
-    public VectorFeature() {
-        super("Vector", "Tích vô hướng, tích có hướng, góc",
-                "Vector u (vd 1 2 3)", "Vector v (bỏ trống nếu chỉ tính độ dài)",
-                "Phép toán (dot, cross, angle, add, sub, norm)");
+    private final String op;
+    private final int dim;
+
+    public VectorFeature(String op, int dim) {
+        super("Vector " + dim + "D: " + op, labels(op, dim));
+        this.op = op;
+        this.dim = dim;
+    }
+
+    private static String[] labels(String op, int dim) {
+        String[] axes = {"x", "y", "z"};
+        int cnt = op.equals("norm") ? dim : 2 * dim;
+        String[] r = new String[cnt];
+        for (int i = 0; i < cnt; i++) r[i] = (i < dim ? "u" : "v") + axes[i % dim];
+        return r;
     }
 
     private static String vec(double[] v) {
@@ -23,32 +36,30 @@ public class VectorFeature extends AbstractFeature {
     }
 
     @Override
-    protected String solve(String[] in, Calculator calc) {
-        double[] u = MathUtil.nums(calc, in[0]), v = MathUtil.nums(calc, in[1]);
-        String op = in[2].trim().toLowerCase();
-        if (u.length == 0) throw new IllegalArgumentException("Thiếu vector u");
-        if (op.equals("norm")) return "|u| = " + MathUtil.f(Math.sqrt(dot(u, u)));
-        if (v.length != u.length) throw new IllegalArgumentException("Hai vector phải cùng số chiều");
+    public String solve(List<String> in, Calculator calc) {
+        double[] u = new double[dim], v = new double[dim];
+        for (int i = 0; i < dim; i++) {
+            u[i] = val(calc, in, i);
+            if (in.size() > dim) v[i] = val(calc, in, dim + i);
+        }
         switch (op) {
+            case "norm": return "|u| = " + MathUtil.f(Math.sqrt(dot(u, u)));
             case "dot": return "u·v = " + MathUtil.f(dot(u, v));
             case "add": case "sub": {
                 double s = op.equals("add") ? 1 : -1;
-                double[] r = new double[u.length];
-                for (int i = 0; i < r.length; i++) r[i] = u[i] + s * v[i];
+                double[] r = new double[dim];
+                for (int i = 0; i < dim; i++) r[i] = u[i] + s * v[i];
                 return vec(r);
             }
-            case "cross": {
-                if (u.length != 3) throw new IllegalArgumentException("Tích có hướng cần vector 3 chiều");
-                double[] r = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
-                return "u×v = " + vec(r);
-            }
-            case "angle": {
+            case "cross":
+                return "u×v = " + vec(new double[]{u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
+                        u[0] * v[1] - u[1] * v[0]});
+            default: {
                 double d = Math.sqrt(dot(u, u) * dot(v, v));
-                if (d < MathUtil.EPS) throw new IllegalArgumentException("Có vector bằng 0");
+                if (d < MathUtil.EPS) throw new IllegalArgumentException("Math ERROR (vector 0)");
                 double ang = Math.acos(Math.max(-1, Math.min(1, dot(u, v) / d)));
-                return "Góc = " + MathUtil.f(Math.toDegrees(ang)) + "° (" + MathUtil.f(ang) + " rad)";
+                return "Góc = " + MathUtil.f(Math.toDegrees(ang)) + "°\n    = " + MathUtil.f(ang) + " rad";
             }
-            default: throw new IllegalArgumentException("Phép toán: dot cross angle add sub norm");
         }
     }
 }

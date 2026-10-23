@@ -42,7 +42,7 @@ final class MathUtil {
         int s = 0;
         while (s < c.length && Math.abs(c[s]) < EPS) s++;
         int deg = c.length - s - 1;
-        if (deg < 1 || deg > 3) throw new IllegalArgumentException("Chỉ hỗ trợ bậc 1 đến 3");
+        if (deg < 1 || deg > 4) throw new IllegalArgumentException("Chỉ hỗ trợ bậc 1 đến 4");
         double[] a = Arrays.copyOfRange(c, s, c.length);
         List<double[]> r = new ArrayList<>();
         if (deg == 1) {
@@ -62,6 +62,8 @@ final class MathUtil {
                 r.add(new double[]{x, -sq});
                 r.add(new double[]{x, sq});
             }
+        } else if (deg == 4) {
+            r.addAll(durandKerner(a));
         } else {
             double p = a[1] / a[0], q = a[2] / a[0], rr = a[3] / a[0];
             double P = q - p * p / 3;
@@ -91,6 +93,56 @@ final class MathUtil {
                 }
             }
         }
+        return r;
+    }
+
+    /** Nghiệm phức của đa thức (hệ số cao -> thấp) bằng phương pháp Durand-Kerner. */
+    static List<double[]> durandKerner(double[] a) {
+        int n = a.length - 1;
+        double[] c = new double[n + 1];
+        double radius = 1;
+        for (int i = 0; i <= n; i++) {
+            c[i] = a[i] / a[0];
+            if (i > 0) radius = Math.max(radius, 1 + Math.abs(c[i]));
+        }
+        double[] zr = new double[n], zi = new double[n];
+        for (int k = 0; k < n; k++) {
+            zr[k] = radius * Math.cos(2 * Math.PI * k / n + 0.4);
+            zi[k] = radius * Math.sin(2 * Math.PI * k / n + 0.4);
+        }
+        for (int iter = 0; iter < 3000; iter++) {
+            double delta = 0;
+            for (int k = 0; k < n; k++) {
+                double pr = 1, pi = 0;
+                for (int i = 1; i <= n; i++) {
+                    double t = pr * zr[k] - pi * zi[k] + c[i];
+                    pi = pr * zi[k] + pi * zr[k];
+                    pr = t;
+                }
+                double dr = 1, di = 0;
+                for (int j = 0; j < n; j++) {
+                    if (j == k) continue;
+                    double xr = zr[k] - zr[j], xi = zi[k] - zi[j];
+                    double t = dr * xr - di * xi;
+                    di = dr * xi + di * xr;
+                    dr = t;
+                }
+                double den = dr * dr + di * di;
+                if (den == 0) continue;
+                double qr = (pr * dr + pi * di) / den, qi = (pi * dr - pr * di) / den;
+                zr[k] -= qr;
+                zi[k] -= qi;
+                delta = Math.max(delta, Math.hypot(qr, qi));
+            }
+            if (delta < 1e-14) break;
+        }
+        List<double[]> r = new ArrayList<>();
+        for (int k = 0; k < n; k++) {
+            double im = Math.abs(zi[k]) < 1e-6 * Math.max(1, Math.abs(zr[k])) ? 0 : zi[k];
+            r.add(new double[]{zr[k], im});
+        }
+        r.sort((x, y) -> x[1] == 0 && y[1] != 0 ? -1 : x[1] != 0 && y[1] == 0 ? 1
+                : x[0] != y[0] ? Double.compare(x[0], y[0]) : Double.compare(x[1], y[1]));
         return r;
     }
 

@@ -32,8 +32,93 @@ public class Tokenizer {
         NAMES.sort((a, b) -> b.length() - a.length());
     }
 
+    private static final char FRAC = Symbols.FRACTION_SLASH;
+    private static final char END = Symbols.EXPONENT_END;
+
+    private static boolean fracOperandChar(char c) {
+        return Character.isDigit(c) || c == '.' || Character.isLetter(c);
+    }
+
+    /** {đầu tử, vị trí dấu ⁄, đầu mẫu, cuối mẫu} của phân số tại vị trí f; null nếu thiếu tử hoặc mẫu. */
+    static int[] fractionSpans(String s, int f) {
+        int len = s.length();
+        int e = f;
+        while (e > 0 && s.charAt(e - 1) == END) e--;
+        if (e == 0) return null;
+        int st;
+        if (s.charAt(e - 1) == ')') {
+            int depth = 0, k = e - 1;
+            for (; k >= 0; k--) {
+                char c = s.charAt(k);
+                if (c == ')') depth++;
+                else if (c == '(' && --depth == 0) break;
+            }
+            if (k < 0) return null;
+            st = k;
+            while (st > 0 && Character.isLetter(s.charAt(st - 1))) st--;
+        } else {
+            st = e;
+            while (st > 0 && fracOperandChar(s.charAt(st - 1))) st--;
+            if (st == e) return null;
+        }
+
+        int ds = f + 1;
+        if (ds >= len) return null;
+        int k = ds;
+        if (s.charAt(k) == '-') k++;
+        int begin = k;
+        while (k < len && Character.isLetter(s.charAt(k))) k++;
+        int de;
+        if (k < len && s.charAt(k) == '(') {
+            int depth = 0;
+            de = len;
+            for (int m = k; m < len; m++) {
+                char c = s.charAt(m);
+                if (c == '(') depth++;
+                else if (c == ')' && --depth == 0) {
+                    de = m + 1;
+                    break;
+                }
+            }
+        } else {
+            while (k < len && fracOperandChar(s.charAt(k))) k++;
+            if (k == begin) return null;
+            de = k;
+        }
+        return new int[]{st, f, ds, de};
+    }
+
+    /** Đổi các phân số tổng quát thành ((tử)/(mẫu)) để bộ tính đọc được. Dạng số⁄số giữ nguyên. */
+    public static String rewriteFractions(String s) {
+        s = s.replace(String.valueOf(Symbols.FRAC_OPEN), "((").replace(String.valueOf(Symbols.FRAC_MID), ")/(")
+                .replace(String.valueOf(Symbols.FRAC_CLOSE), "))");
+        while (true) {
+            int f = -1;
+            for (int k = 0; k < s.length(); k++) {
+                if (s.charAt(k) != FRAC) continue;
+                boolean left = k > 0 && Character.isDigit(s.charAt(k - 1));
+                boolean right = k + 1 < s.length() && Character.isDigit(s.charAt(k + 1));
+                if (left && right) continue;
+                f = k;
+                break;
+            }
+            if (f < 0) return s;
+            int[] sp = fractionSpans(s, f);
+            if (sp == null) throw CalcException.syntax();
+            String den = s.substring(sp[2], sp[3]);
+            int open = 0;
+            for (int i = 0; i < den.length(); i++) {
+                if (den.charAt(i) == '(') open++;
+                else if (den.charAt(i) == ')') open--;
+            }
+            StringBuilder fix = new StringBuilder(den);
+            for (; open > 0; open--) fix.append(')');
+            s = s.substring(0, sp[0]) + "((" + s.substring(sp[0], f) + ")/(" + fix + "))" + s.substring(sp[3]);
+        }
+    }
+
     public List<Token> tokenize(String input) {
-        String s = normalize(input);
+        String s = normalize(rewriteFractions(input));
         List<Token> out = new ArrayList<>();
         int i = 0;
         while (i < s.length()) {
