@@ -21,6 +21,16 @@ public class InequalityFeature extends AbstractFeature {
         for (int k = 0; k < c.length; k++) c[k] = val(calc, in, k);
         boolean less = op.startsWith("<"), eq = op.endsWith("=");
 
+        // mọi hệ số đứng trước hệ số tự do đều bằng 0 -> chỉ còn hằng số c (vd 0x + 5 > 0)
+        boolean constant = true;
+        for (int k = 0; k < c.length - 1; k++) if (Math.abs(c[k]) >= MathUtil.EPS) constant = false;
+        if (constant) {
+            double v = c[c.length - 1];
+            boolean zero = Math.abs(v) < MathUtil.EPS;
+            boolean holds = zero ? eq : (less ? v < 0 : v > 0);
+            return holds ? "Nghiệm: ℝ (mọi x)" : "Vô nghiệm";
+        }
+
         List<Double> rt = new ArrayList<>();
         for (double[] z : MathUtil.roots(c)) if (Math.abs(z[1]) < 1e-7) rt.add(z[0]);
         Collections.sort(rt);

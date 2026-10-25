@@ -40,6 +40,7 @@ public class Calculator {
     }
 
     public double evaluate(String expression) {
+        expression = Templates.expand(expression, this);      // ∫, d/dx, Σ, Π, log cơ số → số
         evaluator.setVariable("Ans", ans);
         evaluator.setVariable("M", memory);
         for (Map.Entry<String, Double> e : variables.entrySet()) {
@@ -80,6 +81,7 @@ public class Calculator {
     public void memoryClear()         { memory = 0; }
     public double getMemory()         { return memory; }
     public double getAns()            { return ans; }
+    public void setAns(double v)      { ans = v; }
 
     // ---------------------------------------------------------------- hiển thị
     /** Chọn cách hiển thị: NORM/SCI = số chữ số có nghĩa, FIX = số chữ số thập phân. */

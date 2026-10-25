@@ -38,14 +38,30 @@ Bấm `MODE` rồi bấm số để chọn, có thể bấm liền như `MODE 9 
 | `1` | **Tính toán** (COMP, chế độ thường) |
 | `2` | **Số phức** (CMPLX): gõ biểu thức có `i`, ví dụ `(1+2i)(3-i)`; kết quả dạng `a+bi`, kèm `r` và góc `∠` |
 | `3` | **Hệ cơ số**: DEC, HEX, BIN, OCT |
-| `4` | **Ma trận**: định thức, nghịch đảo, `A+B`, `A×B` (cấp 2×2, 3×3) |
+| `4` | **Ma trận**: định thức, nghịch đảo (2×2 đến 4×4, kết quả dạng phân số), `A+B`, `A×B` (2×2, 3×3) |
 | `5` | **Vector**: tích vô hướng, tích có hướng, góc, độ dài, cộng, trừ (2D, 3D) |
 | `6` | **Thống kê**: một biến, hồi quy tuyến tính `y = a + bx` |
 | `7` | **Hàm số**: `1` Bảng giá trị `f(X)`, `2` Tích phân `∫`, `3` Logarit `logₐ(b)` |
-| `8` | **Bất phương trình** bậc 2, 3, 4 (`<`, `>`, `≤`, `≥`) |
-| `9` | **Phương trình**: `1` Hệ 2, 3, 4 ẩn; `2` Đa thức bậc 2, 3, 4 |
+| `8` | **Bất phương trình** `1` bậc 2, `2` bậc 3, `3` bậc 4, `4` bậc 1 (`<`, `>`, `≤`, `≥`) |
+| `9` | **Phương trình**: `1` Hệ 2, 3, 4 ẩn; `2` Đa thức: `1` bậc 2, `2` bậc 3, `3` bậc 4, `4` bậc 1 |
 
-Cách nhập trong các chức năng: máy hỏi từng ô (`a ?`, `b ?`...), nhập bằng phím máy tính (gõ được phân số, căn, biến, `Ans`) rồi bấm `=` để sang ô kế. Nhập xong ô cuối thì kết quả hiện ngay trên LCD, ▲ ▼ để cuộn, `=` để nhập lại bài mới, `AC` để thoát.
+**Ma trận và hệ phương trình** được nhập trên **lưới ô vuông** vẽ ngay trên LCD: ô đang sửa được tô đậm, ô chưa nhập hiện mờ `0` (bỏ trống = 0). Gõ số (hoặc phân số, căn, biến...) rồi bấm `=` để sang ô kế; `▲ ▼` đổi hàng, `◄ ►` đổi ô khi con trỏ đã ở mép ô (trong phân số thì `▲ ▼ ◄ ►` vẫn di chuyển như bình thường). `DEL` ở ô trống lùi về ô trước. Bấm `=` ở ô cuối để tính; ở trang kết quả bấm `=` để sửa lại các số cũ.
+
+Cách nhập trong các chức năng khác: máy hỏi từng ô (`a ?`, `b ?`...), nhập bằng phím máy tính (gõ được phân số, căn, biến, `Ans`) rồi bấm `=` để sang ô kế. Nhập xong ô cuối thì kết quả hiện ngay trên LCD, ▲ ▼ để cuộn, `=` để nhập lại bài mới, `AC` để thoát.
+
+### ✍️ Mẫu nhập như máy thật (ô trống hiện □)
+
+Hàng phím trên cùng chèn thẳng vào dòng nhập các mẫu giống CASIO fx-580VN X, giống cách `a b/c` chèn phân số:
+
+| Phím | Mẫu | Thứ tự các ô (bấm `►` để sang ô kế) |
+| ---- | --- | ----------------------------------- |
+| `∫` | ∫ cận trên, cận dưới, biểu thức, `dx` | cận dưới → cận trên → biểu thức (con trỏ bắt đầu ở biểu thức, `◄` lùi lên các cận) |
+| `d/dx` | d/dx (biểu thức) \|x=điểm | biểu thức → điểm |
+| `Σ` / `Π` | tổng / tích, `x=` bên dưới, cận trên | từ → đến → biểu thức (con trỏ bắt đầu ở biểu thức) |
+| `logₐ` | log cơ số dưới, (đối số) | cơ số → đối số |
+| `x` | biến x (hiện `X`) dùng trong biểu thức bên trong | |
+
+`►` `◄` đi qua từng ô rồi ra ngoài (từ đầu ô biểu thức của `∫`, `Σ`, `Π`, `◄` đi lên cận trên rồi cận dưới), `▲` `▼` nhảy giữa cận trên, biểu thức và cận dưới. `DEL` ở đầu một mẫu còn trống thì xoá cả mẫu. Mẫu dùng được như một số hạng bình thường và lồng nhau được, ví dụ `2×∫…dx + logₐ…`. Ô còn trống hoặc sai thì báo `Syntax ERROR` / `Math ERROR` như máy thật.
 
 ### ⚙️ Setting
 * **Giao diện**: chọn theme, cỡ chữ LCD
@@ -104,6 +120,8 @@ Gặp '+'  →  2 + 9 = 11  →  Push 11
 | Định thức, hạng ma trận | Khử Gauss |
 | Bất phương trình | Xét dấu theo nghiệm, trả về tập nghiệm dạng khoảng |
 | Tích phân | Simpson thích nghi |
+| Đạo hàm `d/dx` | Sai phân trung tâm + ngoại suy Richardson (Ridders), kiểm tra khả vi hai phía |
+| `Σ`, `Π`, `logₐ` | Cộng/nhân dồn từng số hạng; `ln b / ln a` |
 | Hồi quy tuyến tính | Bình phương tối thiểu |
 
 ---
@@ -115,9 +133,12 @@ CASIO-FX570/
 ├── src/com/calculator/
 │   ├── Main.java                    # Điểm bắt đầu chạy chương trình
 │   ├── CalculatorTest.java          # Kiểm thử nhanh bộ tính toán
+│   ├── FeatureTest.java             # Kiểm thử các chức năng MODE (PT, BPT, ma trận)
+│   ├── TemplateTest.java            # Kiểm thử mẫu nhập ∫, d/dx, Σ, Π, log cơ số
 │   │
 │   ├── calculator/
 │   │   ├── Calculator.java          # Điều phối tính toán, biến, bộ nhớ, định dạng kết quả
+│   │   ├── Templates.java, Calculus.java  # Tính mẫu ∫, d/dx, Σ, Π, log; tích phân và đạo hàm số
 │   │   └── ComplexMath.java         # Tính biểu thức số phức (CMPLX)
 │   │
 │   ├── parser/
@@ -255,6 +276,13 @@ Phím tắt mặc định: `F3` mở MODE, `F4` mở Setting. Có thể đổi t
 | `(1+2i)(3-i)` (CMPLX) | `5+5i` |
 | `MODE 9 2 2`, nhập `1 -6 11 -6` | `x1 = 1, x2 = 2, x3 = 3` |
 | `MODE 7 2`, `f(X)=X²`, `0`, `3` | `∫ = 9` |
+| `∫` gõ `X²`, `◄` (về đầu ô) `◄` gõ `3`, `◄` gõ `0` | `9` |
+| `d/dx` `sin(X)` ► `0` (RAD) | `1` |
+| `Σ` gõ `X`, `◄` gõ `100`, `◄` gõ `1` | `5050` |
+| `logₐ` `2` ► `8` | `3` |
+| `MODE 9 2 4`, `a=3`, `b=2` | `x = -2/3` |
+| `MODE 8 4 1`, `a=2`, `b=-4` (2x−4 < 0) | `Nghiệm: (-∞; 2)` |
+| `MODE 4 2 3`, ma trận 4×4 | `det A` và `A⁻¹` dạng phân số |
 
 ---
 

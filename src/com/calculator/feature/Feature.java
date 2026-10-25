@@ -16,4 +16,16 @@ public interface Feature {
 
     /** Tính kết quả từ các ô đã nhập; mỗi dòng của chuỗi trả về là một dòng trên LCD. */
     String solve(List<String> values, Calculator calc) throws Exception;
+
+    /**
+     * Nhập theo lưới ô vuông (ma trận, hệ phương trình): trả về {số hàng, số cột, số lưới}, null nếu nhập từng ô như thường.
+     * Thứ tự ô nhập: lưới thứ nhất (hàng 1 từ trái sang phải, hàng 2...), rồi lưới thứ hai...
+     */
+    default int[] grid() { return null; }
+
+    /** Tên từng lưới vẽ phía trên (vd "A", "B"); null nếu không cần. */
+    default String[] gridNames() { return null; }
+
+    /** true nếu cột cuối là cột hệ số tự do (vẽ vạch ngăn, dùng cho hệ phương trình). */
+    default boolean gridAugmented() { return false; }
 }

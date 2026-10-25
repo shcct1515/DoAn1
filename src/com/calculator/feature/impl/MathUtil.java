@@ -237,4 +237,51 @@ final class MathUtil {
         for (int i = 0; i < n; i++) System.arraycopy(m[i], n, r[i], 0, k);
         return r;
     }
+
+    // ---------------------------------------------------------------- phân số / làm tròn
+    /** Phân số "p/q" nếu v là số hữu tỉ đẹp, ngược lại là số thập phân. */
+    static String fr(double v) {
+        if (Math.abs(v) < EPS) return "0";
+        String s = Calculator.toFraction(v);
+        return s != null ? s : f(v);
+    }
+
+    /** Làm tròn về số nguyên gần nhất khi sai khác chỉ do sai số số học (dùng cho kết quả số gần đúng). */
+    static double snap(double v) {
+        double r = Math.rint(v);
+        return Math.abs(v - r) <= 1e-9 * Math.max(1, Math.abs(v)) ? r : v;
+    }
+
+    /**
+     * Ma trận dạng phân số (nếu được), các cột căn đều. Quá rộng cho LCD thì mỗi phần tử một dòng.
+     * @param name tên dùng khi phải in từng phần tử, vd "A⁻¹"
+     */
+    static String showFrac(double[][] m, String name) {
+        int rows = m.length, cols = m[0].length;
+        String[][] t = new String[rows][cols];
+        int[] w = new int[cols];
+        int total = 0;
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++) {
+                t[i][j] = fr(m[i][j]);
+                w[j] = Math.max(w[j], t[i][j].length());
+            }
+        for (int j = 0; j < cols; j++) total += w[j] + 2;
+        StringBuilder sb = new StringBuilder();
+        if (total > 30) {
+            for (int i = 0; i < rows; i++)
+                for (int j = 0; j < cols; j++)
+                    sb.append(name).append("[").append(i + 1).append(",").append(j + 1).append("] = ")
+                            .append(t[i][j]).append("\n");
+            return sb.toString().trim();
+        }
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                sb.append(" ".repeat(w[j] - t[i][j].length())).append(t[i][j]);
+                if (j < cols - 1) sb.append("  ");
+            }
+            sb.append("\n");
+        }
+        return sb.toString().stripTrailing();     // giữ khoảng căn lề ở đầu dòng
+    }
 }

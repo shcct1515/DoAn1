@@ -25,7 +25,8 @@ public final class ModeTree {
         String[][] mOps = {{"det", "Định thức"}, {"inv", "Nghịch đảo"}, {"add", "A + B"}, {"mul", "A × B"}};
         for (String[] o : mOps) {
             ModeNode m = ModeNode.menu(o[1]);
-            for (int n = 2; n <= 3; n++) m.add(ModeNode.leaf("Cấp " + n + "×" + n, new MatrixFeature(o[0], n)));
+            int max = o[0].equals("det") || o[0].equals("inv") ? 4 : 3;      // det, nghịch đảo tới 4×4
+            for (int n = 2; n <= max; n++) m.add(ModeNode.leaf("Cấp " + n + "×" + n, new MatrixFeature(o[0], n)));
             mat.add(m);
         }
         r.add(mat);
@@ -64,6 +65,10 @@ public final class ModeTree {
                     new InequalityFeature(deg, op)));
             ineq.add(d);
         }
+        ModeNode lin = ModeNode.menu("Bậc 1");          // thêm cuối để giữ phím tắt cũ
+        for (String op : new String[]{"<", ">", "<=", ">="}) lin.add(ModeNode.leaf(op.replace("<=", "≤").replace(">=", "≥") + " 0",
+                new InequalityFeature(1, op)));
+        ineq.add(lin);
         r.add(ineq);
 
         ModeNode eq = ModeNode.menu("Phương trình");
@@ -75,6 +80,7 @@ public final class ModeTree {
         poly.add(ModeNode.leaf("Bậc 2", new EquationFeature(2)));
         poly.add(ModeNode.leaf("Bậc 3", new EquationFeature(3)));
         poly.add(ModeNode.leaf("Bậc 4", new EquationFeature(4)));
+        poly.add(ModeNode.leaf("Bậc 1", new EquationFeature(1)));   // thêm cuối để giữ phím tắt cũ
         eq.add(sys).add(poly);
         r.add(eq);
         return r;

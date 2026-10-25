@@ -107,8 +107,8 @@ public class CalculatorUI extends JFrame {
         settings.addListener(this::applySettings);
         applySettings();
 
-        setMinimumSize(new Dimension(420, 640));
-        setSize(460, 730);
+        setMinimumSize(new Dimension(420, 700));
+        setSize(460, 800);
         setLocationRelativeTo(null);
     }
 
@@ -143,8 +143,8 @@ public class CalculatorUI extends JFrame {
         modeKey = createKey("mode", "MODE", Kind.FN, screen::openMenu).title("MODE (menu tính năng)");
         settingsKey = createKey("settings", "SETTING", Kind.FN, this::openSettings).title("SETTING (cài đặt)");
 
-        addAction("left", "◄  Con trỏ sang trái", () -> input.moveCaret(-1));
-        addAction("right", "►  Con trỏ sang phải", () -> input.moveCaret(1));
+        addAction("left", "◄  Con trỏ sang trái", () -> moveCaretOrCell(-1));
+        addAction("right", "►  Con trỏ sang phải", () -> moveCaretOrCell(1));
         addAction("up", "▲  Biểu thức trước (lịch sử)", this::historyUp);
         addAction("down", "▼  Biểu thức sau (lịch sử)", this::historyDown);
 
@@ -190,8 +190,21 @@ public class CalculatorUI extends JFrame {
 
     // ================================================================ bàn phím
     private JPanel buildKeypad() {
-        keypad = new JPanel(new GridLayout(8, 6, 5, 5));
+        keypad = new JPanel(new GridLayout(9, 6, 5, 5));
         JPanel p = keypad;
+
+        // Hàng 0: mẫu nhập nhiều ô như máy thật (ô trống hiện □), biến x
+        add(p, "integral", "∫", Kind.FN, () -> input.insertTemplate(Symbols.INT_OPEN))
+                .title("Tích phân ∫ (biểu thức, cận dưới, cận trên) dx — ► để sang ô kế, ▲ ▼ đổi ô");
+        add(p, "deriv", "d/dx", Kind.FN, () -> input.insertTemplate(Symbols.DER_OPEN))
+                .title("Đạo hàm tại một điểm: d/dx (biểu thức) |x= điểm");
+        add(p, "sigma", "Σ", Kind.FN, () -> input.insertTemplate(Symbols.SUM_OPEN))
+                .title("Tổng Σ (biểu thức, từ x=, đến)");
+        add(p, "prod", "Π", Kind.FN, () -> input.insertTemplate(Symbols.PROD_OPEN))
+                .title("Tích Π (biểu thức, từ x=, đến)");
+        add(p, "logbase", "logₐ", Kind.FN, () -> input.insertTemplate(Symbols.LOG_OPEN))
+                .title("Logarit cơ số bất kỳ: log (cơ số) (đối số)");
+        add(p, "varx", "x", Kind.FN, ins("X")).title("Biến x (hiện là X) dùng trong ∫, d/dx, Σ, Π");
 
         // Hàng 1
         add(p, "abc", "a b/c", Kind.FN, () -> input.insertFraction());
@@ -551,6 +564,16 @@ public class CalculatorUI extends JFrame {
         if (history.isEmpty() || !history.get(history.size() - 1).equals(expr)) history.add(expr);
         while (history.size() > settings.getHistorySize()) history.remove(0);
         historyPos = history.size();
+    }
+
+    /** ◄ ►: di chuyển con trỏ; trong lưới ma trận, con trỏ đã ở mép ô thì sang ô kế bên. */
+    private void moveCaretOrCell(int delta) {
+        String before = input.getText();
+        int pos = input.getCaretPosition();
+        input.moveCaret(delta);
+        if (screen.isActive() && input.getCaretPosition() == pos && input.getText().equals(before)) {
+            screen.horizontal(delta);
+        }
     }
 
     private void historyUp() {

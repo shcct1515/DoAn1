@@ -13,6 +13,10 @@ public class SystemFeature extends AbstractFeature {
         this.n = n;
     }
 
+    @Override public int[] grid() { return new int[]{n, n + 1, 1}; }
+
+    @Override public boolean gridAugmented() { return true; }
+
     private static String[] labels(int n) {
         String[] base = Arrays4.names(n + 1);
         String[] r = new String[n * (n + 1)];

@@ -26,6 +26,12 @@ public class MatrixFeature extends AbstractFeature {
         return r;
     }
 
+    private boolean two() { return op.equals("add") || op.equals("mul"); }
+
+    @Override public int[] grid() { return new int[]{n, n, two() ? 2 : 1}; }
+
+    @Override public String[] gridNames() { return two() ? new String[]{"A", "B"} : null; }
+
     private double[][] read(Calculator calc, List<String> in, int offset) {
         double[][] m = new double[n][n];
         for (int i = 0; i < n; i++) for (int j = 0; j < n; j++) m[i][j] = val(calc, in, offset + i * n + j);
@@ -46,7 +52,9 @@ public class MatrixFeature extends AbstractFeature {
                 for (int i = 0; i < n; i++) id[i][i] = 1;
                 double[][] r = MathUtil.gaussJordan(a, id);
                 if (r == null) throw new IllegalArgumentException("Math ERROR (det = 0)");
-                return MathUtil.show(r);
+                double[] d = new double[1];
+                MathUtil.rank(a, d);
+                return "det A = " + MathUtil.f(d[0]) + "\n" + MathUtil.showFrac(r, "A⁻¹");
             }
             case "add": {
                 double[][] b = read(calc, in, n * n), r = new double[n][n];

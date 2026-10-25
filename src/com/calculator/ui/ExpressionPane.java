@@ -24,6 +24,7 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Line2D;
+import java.awt.geom.Path2D;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -50,7 +51,15 @@ public class ExpressionPane extends JTextPane {
             "sin(", "cos(", "tan(", "log(", "exp(", "abs(", "ln(", "√(",
             "Ans", "root", "nPr", "nCr"};
 
+    private static final char TS = Symbols.TPL_SEP;
+    private static final char TC = Symbols.TPL_CLOSE;
+
     private static final int PAD = 3, GAP = 2;
+
+    /** Ký tự khung (ẩn, không có độ rộng): khung phân số và khung các mẫu ∫, d/dx, Σ, Π, log. */
+    private static boolean isFrame(char c) {
+        return c == FO || c == FM || c == FC || Symbols.isTemplateOpen(c) || c == TS || c == TC;
+    }
 
     private Color bg = Color.WHITE, fg = Color.BLACK;
     private int size = 22;
@@ -162,6 +171,18 @@ public class ExpressionPane extends JTextPane {
         setCaretPosition(start + 1 + num.length() + 1);
     }
 
+    /** Chèn mẫu ∫ / d/dx / Σ / Π / log cơ số (các ô trống □), con trỏ vào ô đầu tiên. */
+    public void insertTemplate(char open) {
+        if (insertHook != null) insertHook.accept("" + open);
+        StringBuilder sb = new StringBuilder().append(open);
+        for (int i = 1; i < Symbols.slotCount(open); i++) sb.append(TS);
+        sb.append(TC);
+        int pos = getSelectionStart();
+        replaceSelection(sb.toString());
+        // ∫, Σ, Π: con trỏ vào ô biểu thức (ô cuối, sau hai cận); các mẫu khác vào ô đầu
+        setCaretPosition(pos + (Symbols.slotCount(open) == 3 ? 3 : 1));
+    }
+
     /** Đầu của số hoặc nhóm ngoặc (kèm tên hàm) đứng ngay trước vị trí pos; -1 nếu không có. */
     private static int operandStart(String t, int pos) {
         if (pos <= 0 || pos > t.length()) return -1;
@@ -213,6 +234,18 @@ public class ExpressionPane extends JTextPane {
         }
         char last = before.charAt(before.length() - 1);
         int p = before.length();
+        if (Symbols.isTemplateOpen(last)) {     // đầu ô đầu tiên của mẫu: mẫu còn trống thì xoá cả mẫu
+            int[] sc = tplScan(text, p - 1);
+            if (sc != null && text.substring(p, sc[sc.length - 1]).replace(String.valueOf(TS), "").isEmpty()) {
+                setText(text.substring(0, p - 1) + text.substring(sc[sc.length - 1] + 1));
+            }
+            setCaretPosition(p - 1);
+            return;
+        }
+        if (last == TS || last == TC) {         // lùi về cuối ô trước / vào lại ô cuối của mẫu
+            setCaretPosition(p - 1);
+            return;
+        }
         if (last == FO) {                       // đầu tử số: xoá cả khung nếu còn rỗng, không thì ra ngoài
             int[] f = fracAt(text, p - 1);
             if (f != null && (f[0] == p || f[1] == f[0] + 1)) {
@@ -296,6 +329,11 @@ public class ExpressionPane extends JTextPane {
         String t = getText();
         int caret = getCaretPosition();
         int[] f = enclosing(t, caret);
+        int[] tp = enclosingTpl(t, caret);
+        if (tp != null && (f == null || tp[0] > f[0]) && lastLay != null) {      // trong ∫, d/dx, Σ, Π, log
+            moveInTemplate(t, caret, tp, dir);
+            return true;
+        }
         if (f == null || lastLay == null) return false;
         if (dir < 0 && caret > f[1]) {
             setCaretPosition(pick(f[0] + 1, f[1], lastLay.cx[Math.min(caret, lastLay.cx.length - 1)]));
@@ -306,6 +344,21 @@ public class ExpressionPane extends JTextPane {
             return true;
         }
         return false;
+    }
+
+    /** ▲ ▼ trong mẫu: nhảy giữa các ô theo đúng vị trí trên màn hình (cận trên, biểu thức, cận dưới...). */
+    private void moveInTemplate(String t, int caret, int[] tp, int dir) {
+        char kind = t.charAt(tp[0]);
+        int[] order;                                            // thứ tự các ô từ trên xuống dưới
+        if (kind == Symbols.DER_OPEN) order = new int[]{0, 1};
+        else if (kind == Symbols.LOG_OPEN) order = new int[]{1, 0};
+        else order = new int[]{1, 2, 0};           // cận trên, biểu thức, cận dưới
+        int at = 0;
+        for (int k = 0; k < order.length; k++) if (order[k] == tp[1]) at = k;
+        int target = order[Math.max(0, Math.min(order.length - 1, at + dir))];
+        if (target == tp[1]) return;
+        int lo = target == 0 ? tp[0] + 1 : tp[2 + target - 1] + 1, hi = tp[2 + target];
+        setCaretPosition(pick(lo, hi, lastLay.cx[Math.min(caret, lastLay.cx.length - 1)]));
     }
 
     private int pick(int lo, int hi, float x) {
@@ -416,6 +469,45 @@ public class ExpressionPane extends JTextPane {
         return best;
     }
 
+    /** Vị trí các ký tự ngăn ô rồi ký tự đóng của mẫu mở tại open; null nếu thiếu hoặc sai số ô. */
+    static int[] tplScan(String t, int open) {
+        int need = Symbols.slotCount(t.charAt(open)) - 1;
+        List<Integer> seps = new ArrayList<>();
+        int depth = 0;
+        for (int i = open; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (Symbols.isTemplateOpen(c)) depth++;
+            else if (c == TS && depth == 1) seps.add(i);
+            else if (c == TC && --depth == 0) {
+                if (seps.size() != need) return null;
+                int[] r = new int[need + 1];
+                for (int k = 0; k < need; k++) r[k] = seps.get(k);
+                r[need] = i;
+                return r;
+            }
+        }
+        return null;
+    }
+
+    /** Mẫu trong cùng chứa con trỏ: {vị trí mở, chỉ số ô, các vị trí ngăn..., vị trí đóng} hoặc null. */
+    private static int[] enclosingTpl(String t, int caret) {
+        int best = -1;
+        for (int i = 0; i < t.length(); i++) {
+            if (!Symbols.isTemplateOpen(t.charAt(i))) continue;
+            int[] sc = tplScan(t, i);
+            if (sc != null && i < caret && caret <= sc[sc.length - 1]) best = i;     // mẫu mở sau = lồng bên trong
+        }
+        if (best < 0) return null;
+        int[] sc = tplScan(t, best);
+        int slot = 0;
+        while (slot < sc.length - 1 && caret > sc[slot]) slot++;
+        int[] r = new int[sc.length + 2];
+        r[0] = best;
+        r[1] = slot;
+        System.arraycopy(sc, 0, r, 2, sc.length);
+        return r;
+    }
+
     // ================================================================ bố cục và vẽ
     private final class Lay {
         final float[] cx, cy;
@@ -467,7 +559,7 @@ public class ExpressionPane extends JTextPane {
 
         @Override
         void measure(int level) {
-            if (isHidden(c) || c == FO || c == FM || c == FC) return;
+            if (isHidden(c) || isFrame(c)) return;
             FontMetrics m = fm(level);
             w = m.charWidth(c);
             asc = m.getAscent();
@@ -588,6 +680,219 @@ public class ExpressionPane extends JTextPane {
         }
     }
 
+    /** Mẫu nhiều ô giống máy Casio: ∫, d/dx, Σ, Π, log cơ số. Ô trống hiện □. */
+    private final class Tpl extends Node {
+        final char kind;
+        final int n;
+        final int[] pos;                 // vị trí các ký tự ngăn ô, rồi ký tự đóng
+        final Seq[] slot;
+        final int[] lv, box;
+        final boolean[] emp;
+        final float[] sw, sa, sd;
+        // hình học tính trong measure()
+        float fa, fd, axis, ba, bd, symW, boundW, colW, signW, signH, signBase, pw, subOff, dxW, fracW, lblW;
+        float upBase, lowBase, subW;
+
+        Tpl(int start, char kind, int[] pos) {
+            this.start = start;
+            this.kind = kind;
+            this.pos = pos;
+            n = pos.length;
+            slot = new Seq[n];
+            lv = new int[n];
+            box = new int[n];
+            emp = new boolean[n];
+            sw = new float[n];
+            sa = new float[n];
+            sd = new float[n];
+        }
+
+        int slotStart(int i) { return i == 0 ? start + 1 : pos[i - 1] + 1; }
+
+        int slotEnd(int i) { return pos[i]; }
+
+        @Override
+        void measure(int level) {
+            FontMetrics m = fm(level);
+            fa = m.getAscent();
+            fd = m.getDescent();
+            axis = Math.round(fa * 0.33f);
+            for (int i = 0; i < n; i++) {
+                boolean small = kind == Symbols.LOG_OPEN ? i == 0 : kind == Symbols.DER_OPEN ? i > 0 : i < 2;   // cận, điểm x, cơ số: chữ nhỏ
+                lv[i] = small ? level + 1 : level;
+                slot[i].measure(lv[i]);
+                emp[i] = slot[i].kids.isEmpty();
+                box[i] = Math.max(6, Math.round(fm(lv[i]).getAscent() * 0.8f));
+                sw[i] = emp[i] ? box[i] + 2 : slot[i].w;
+                sa[i] = emp[i] ? box[i] : slot[i].asc;
+                sd[i] = emp[i] ? 0 : slot[i].desc;
+            }
+            int bi = kind == Symbols.LOG_OPEN ? 1 : kind == Symbols.DER_OPEN ? 0 : 2;     // ô "thân" nằm trên dòng chính
+            ba = Math.max(sa[bi], fa);
+            bd = Math.max(sd[bi], fd);
+            pw = Math.max(4, Math.round((ba + bd) * 0.16f));
+            switch (kind) {
+                case Symbols.INT_OPEN: {
+                    float h = ba + bd + 4;
+                    h = Math.max(h, sa[1] + sd[1] + sa[0] + sd[0] + 4);
+                    float e = (h - (ba + bd + 4)) / 2;
+                    asc = ba + 2 + e;
+                    desc = bd + 2 + e;
+                    symW = Math.max(7, Math.round(h * 0.30f));
+                    boundW = Math.max(sw[0], sw[1]);
+                    dxW = m.stringWidth("dx");
+                    w = symW + 2 + boundW + 3 + sw[2] + 3 + dxW + 2;
+                    break;
+                }
+                case Symbols.DER_OPEN: {
+                    dxW = m.stringWidth("dx");
+                    fracW = dxW + 4;
+                    lblW = fm(level + 1).stringWidth("x=");
+                    subOff = Math.round(Math.max(bd, fd) + sa[1] * 0.35f);
+                    float fracAsc = axis + 2 + fd + fa, fracDesc = Math.max(0, -axis + 2 + fa + fd);
+                    asc = Math.max(ba, fracAsc) + 1;
+                    desc = Math.max(Math.max(bd, fracDesc), subOff + sd[1]) + 1;
+                    w = fracW + 3 + pw + 2 + sw[0] + 2 + pw + 4 + 2 + lblW + sw[1] + 2;
+                    break;
+                }
+                case Symbols.LOG_OPEN: {
+                    lblW = m.stringWidth("log");
+                    subOff = Math.round(fd * 0.6f + sa[0] * 0.45f);
+                    asc = ba + 1;
+                    desc = Math.max(bd, subOff + sd[0]) + 1;
+                    w = lblW + 1 + sw[0] + 2 + pw + 2 + sw[1] + 2 + pw + 1;
+                    break;
+                }
+                default: {                                                       // Σ, Π
+                    signH = Math.round(fa * 1.3f);
+                    Font sf = font(level).deriveFont(Font.PLAIN, signH / 0.72f);
+                    signW = getFontMetrics(sf).stringWidth(kind == Symbols.SUM_OPEN ? "Σ" : "Π");
+                    lblW = fm(level + 1).stringWidth("x=");
+                    colW = Math.max(signW, Math.max(lblW + sw[0], sw[1]));
+                    signBase = -axis + signH / 2;                                // so với đường cơ sở
+                    upBase = signBase - signH - 2 - sd[1];
+                    lowBase = signBase + 2 + sa[0];
+                    asc = Math.max(ba, -(upBase - sa[1])) + 1;
+                    desc = Math.max(bd, lowBase + sd[0]) + 1;
+                    w = colW + 3 + pw + 2 + sw[2] + 2 + pw + 2;
+                }
+            }
+        }
+
+        private void slotAt(Lay L, int i, float x, float base) {
+            L.put(slotStart(i), x, base, lv[i]);
+            if (emp[i]) {
+                if (L.g != null) {
+                    L.g.setColor(fg);
+                    L.g.setStroke(new BasicStroke(1f));
+                    L.g.drawRect(Math.round(x) + 1, Math.round(base) - box[i], box[i] - 1, box[i] - 1);
+                }
+            } else {
+                slot[i].place(L, x, base, lv[i]);
+            }
+            L.put(slotEnd(i), x + sw[i], base, lv[i]);
+        }
+
+        private void text(Lay L, String s, int level, float x, float base) {
+            if (L.g == null) return;
+            L.g.setFont(font(level));
+            L.g.setColor(fg);
+            L.g.drawString(s, x, base);
+        }
+
+        private void paren(Lay L, float x, float base, boolean left) {
+            if (L.g == null) return;
+            float top = base - ba - 1, bot = base + bd + 1, mid = (top + bot) / 2;
+            Path2D.Float p = new Path2D.Float();
+            if (left) {
+                p.moveTo(x + pw, top);
+                p.quadTo(x - pw * 0.15f, mid, x + pw, bot);
+            } else {
+                p.moveTo(x, top);
+                p.quadTo(x + pw * 1.15f, mid, x, bot);
+            }
+            L.g.setColor(fg);
+            L.g.setStroke(new BasicStroke(1.3f));
+            L.g.draw(p);
+        }
+
+        @Override
+        void place(Lay L, float x, float base, int level) {
+            L.put(start, x, base, level);
+            switch (kind) {
+                case Symbols.INT_OPEN: {
+                    float top = base - asc, bot = base + desc;
+                    if (L.g != null) {                                           // dấu tích phân
+                        float h = bot - top;
+                        Path2D.Float p = new Path2D.Float();
+                        p.moveTo(x + symW * 0.95f, top + h * 0.12f);
+                        p.curveTo(x + symW * 0.90f, top + h * 0.01f, x + symW * 0.62f, top - h * 0.01f, x + symW * 0.57f, top + h * 0.2f);
+                        p.lineTo(x + symW * 0.43f, top + h * 0.8f);
+                        p.curveTo(x + symW * 0.38f, top + h * 1.01f, x + symW * 0.10f, top + h * 0.99f, x + symW * 0.05f, top + h * 0.88f);
+                        L.g.setColor(fg);
+                        L.g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                        L.g.draw(p);
+                    }
+                    float bx = x + symW + 2;
+                    slotAt(L, 1, bx, top + sa[1]);              // cận trên
+                    slotAt(L, 0, bx, bot - sd[0]);              // cận dưới
+                    float cx = bx + boundW + 3;
+                    slotAt(L, 2, cx, base);                     // biểu thức
+                    text(L, "dx", level, cx + sw[2] + 3, base);
+                    break;
+                }
+                case Symbols.DER_OPEN: {
+                    if (L.g != null) {                                           // d/dx dạng phân số nhỏ
+                        L.g.setColor(fg);
+                        L.g.setStroke(new BasicStroke(1.2f));
+                        L.g.draw(new Line2D.Float(x, base - axis, x + fracW, base - axis));
+                    }
+                    text(L, "d", level, x + (fracW - fm(level).stringWidth("d")) / 2, base - axis - 2 - fd);
+                    text(L, "dx", level, x + 2, base - axis + 2 + fa);
+                    float cx = x + fracW + 3;
+                    paren(L, cx, base, true);
+                    slotAt(L, 0, cx + pw + 2, base);
+                    float rx = cx + pw + 2 + sw[0] + 2;
+                    paren(L, rx, base, false);
+                    float bar = rx + pw + 4;
+                    if (L.g != null) {
+                        L.g.setColor(fg);
+                        L.g.setStroke(new BasicStroke(1.3f));
+                        L.g.draw(new Line2D.Float(bar, base - ba, bar, base + subOff));
+                    }
+                    text(L, "x=", level + 1, bar + 2, base + subOff);
+                    slotAt(L, 1, bar + 2 + lblW, base + subOff);
+                    break;
+                }
+                case Symbols.LOG_OPEN: {
+                    text(L, "log", level, x, base);
+                    slotAt(L, 0, x + lblW + 1, base + subOff);
+                    float cx = x + lblW + 1 + sw[0] + 2;
+                    paren(L, cx, base, true);
+                    slotAt(L, 1, cx + pw + 2, base);
+                    paren(L, cx + pw + 2 + sw[1] + 2, base, false);
+                    break;
+                }
+                default: {                                                       // Σ, Π
+                    if (L.g != null) {
+                        Font sf = font(level).deriveFont(Font.PLAIN, signH / 0.72f);
+                        L.g.setFont(sf);
+                        L.g.setColor(fg);
+                        L.g.drawString(kind == Symbols.SUM_OPEN ? "Σ" : "Π", x + (colW - signW) / 2, base + signBase);
+                    }
+                    slotAt(L, 1, x + (colW - sw[1]) / 2, base + upBase);          // đến
+                    float lx = x + (colW - (lblW + sw[0])) / 2;
+                    text(L, "x=", level + 1, lx, base + lowBase);
+                    slotAt(L, 0, lx + lblW, base + lowBase);                       // từ
+                    float cx = x + colW + 3;
+                    paren(L, cx, base, true);
+                    slotAt(L, 2, cx + pw + 2, base);                               // biểu thức
+                    paren(L, cx + pw + 2 + sw[2] + 2, base, false);
+                }
+            }
+        }
+    }
+
     private Seq parse(String t, int from, int to) {
         Seq s = new Seq();
         s.start = from;
@@ -605,6 +910,16 @@ public class ExpressionPane extends JTextPane {
                     fr.den = parse(t, f[0] + 1, f[1]);
                     s.kids.add(fr);
                     i = f[1] + 1;
+                    continue;
+                }
+            }
+            if (Symbols.isTemplateOpen(c)) {
+                int[] sc = tplScan(t, i);
+                if (sc != null && sc[sc.length - 1] < to) {
+                    Tpl tp = new Tpl(i, c, sc);
+                    for (int k = 0; k < tp.n; k++) tp.slot[k] = parse(t, tp.slotStart(k), tp.slotEnd(k));
+                    s.kids.add(tp);
+                    i = sc[sc.length - 1] + 1;
                     continue;
                 }
             }
