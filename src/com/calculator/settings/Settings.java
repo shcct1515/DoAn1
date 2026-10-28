@@ -51,6 +51,7 @@ public class Settings {
     private boolean autoFraction = true;
     private boolean mixedFraction = true;
     private boolean alwaysOnTop = false;
+    private boolean trollMode = false;
     private int historySize = 30;
     private int lcdFontSize = 22;
     /** Phím tắt hiện tại; giá trị null = đã xoá phím. */
@@ -96,6 +97,9 @@ public class Settings {
 
     public boolean isAlwaysOnTop() { return alwaysOnTop; }
     public void setAlwaysOnTop(boolean b) { alwaysOnTop = b; }
+
+    public boolean isTrollMode() { return trollMode; }
+    public void setTrollMode(boolean b) { trollMode = b; }
 
     public int getHistorySize() { return historySize; }
     public void setHistorySize(int n) { historySize = clamp(n, 5, 200); }
@@ -162,6 +166,7 @@ public class Settings {
         autoFraction = true;
         mixedFraction = true;
         alwaysOnTop = false;
+        trollMode = false;
         historySize = 30;
         lcdFontSize = 22;
         resetShortcuts();
@@ -194,6 +199,7 @@ public class Settings {
         p.setProperty("fraction.auto", String.valueOf(autoFraction));
         p.setProperty("fraction.mixed", String.valueOf(mixedFraction));
         p.setProperty("window.alwaysOnTop", String.valueOf(alwaysOnTop));
+        p.setProperty("fun.troll", String.valueOf(trollMode));
         p.setProperty("history.size", String.valueOf(historySize));
         p.setProperty("lcd.fontSize", String.valueOf(lcdFontSize));
         for (Map.Entry<String, KeyStroke> e : shortcuts.entrySet()) {
@@ -233,6 +239,7 @@ public class Settings {
         autoFraction = Boolean.parseBoolean(p.getProperty("fraction.auto", String.valueOf(autoFraction)));
         mixedFraction = Boolean.parseBoolean(p.getProperty("fraction.mixed", String.valueOf(mixedFraction)));
         alwaysOnTop = Boolean.parseBoolean(p.getProperty("window.alwaysOnTop", String.valueOf(alwaysOnTop)));
+        trollMode = Boolean.parseBoolean(p.getProperty("fun.troll", "false"));
         historySize = readInt(p, "history.size", historySize, 5, 200);
         lcdFontSize = readInt(p, "lcd.fontSize", lcdFontSize, 16, 30);
         for (String id : new ArrayList<>(shortcuts.keySet())) {
@@ -265,7 +272,6 @@ public class Settings {
             }
         }
     }
-
     private static int readInt(Properties p, String key, int def, int lo, int hi) {
         try {
             return clamp(Integer.parseInt(p.getProperty(key, String.valueOf(def)).trim()), lo, hi);

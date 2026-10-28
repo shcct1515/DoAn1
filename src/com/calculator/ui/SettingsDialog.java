@@ -61,7 +61,7 @@ public class SettingsDialog extends JDialog {
     private JLabel digitsLabel;
     private JCheckBox autoFraction, mixedFraction;
     // Chung
-    private JCheckBox onTop;
+    private JCheckBox onTop, trollMode;
     private JSpinner historySize;
 
     public SettingsDialog(JFrame owner, Settings settings, List<ActionEntry> actions) {
@@ -365,6 +365,15 @@ public class SettingsDialog extends JDialog {
         onTop.setAlignmentX(LEFT_ALIGNMENT);
         p.add(onTop);
 
+        trollMode = new JCheckBox("Tick vô thử đi");
+        trollMode.addActionListener(e -> {
+            if (updating) return;
+            settings.setTrollMode(trollMode.isSelected());
+            settings.fireChanged();
+        });
+        trollMode.setAlignmentX(LEFT_ALIGNMENT);
+        p.add(trollMode);
+
         JPanel historyRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
         historyRow.add(new JLabel("Số biểu thức lưu để xem lại (phím ▲ ▼):"));
         historySize = new JSpinner(new SpinnerNumberModel(30, 5, 200, 5));
@@ -426,6 +435,7 @@ public class SettingsDialog extends JDialog {
             mixedFraction.setSelected(settings.isMixedFraction());
 
             onTop.setSelected(settings.isAlwaysOnTop());
+            trollMode.setSelected(settings.isTrollMode());
             historySize.setValue(settings.getHistorySize());
 
             int selected = table == null ? -1 : table.getSelectedRow();

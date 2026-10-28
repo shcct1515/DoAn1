@@ -21,7 +21,6 @@ Dự án áp dụng **Lập trình hướng đối tượng, Cấu trúc dữ li
 * Đơn vị góc `DEG` / `RAD` / `GRAD`
 
 ### 🧾 Hiển thị và bộ nhớ
-* **Phân số gạch ngang** (tử trên, mẫu dưới), ô trống hiện `□` cho tới khi nhập số
 * Đổi qua lại **phân số ⇔ thập phân** (`S⇔D`), hiển thị hỗn số
 * Hiển thị `NORM`, `FIX`, `SCI`, chọn số chữ số
 * Hệ cơ số `DEC`, `HEX`, `BIN`, `OCT`

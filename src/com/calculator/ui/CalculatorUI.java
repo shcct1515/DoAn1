@@ -624,6 +624,7 @@ public class CalculatorUI extends JFrame {
             // nhập bằng phân số thì kết quả cũng hiện dạng phân số (nếu được)
             fractionView = settings.isAutoFraction() && (expr.indexOf(Symbols.FRACTION_SLASH) >= 0 || expr.indexOf(Symbols.FRAC_OPEN) >= 0);
             refreshResult();
+            if (settings.isTrollMode() && !complexMode) showTroll();
         } catch (CalcException ex) {
             lastResult = null;
             result.showText(ex.getMessage());
@@ -632,6 +633,21 @@ public class CalculatorUI extends JFrame {
             result.showText("Syntax ERROR");
         }
         updateStatus();
+    }
+
+    private static final String[] TROLL_TEXTS = {
+            "hello world", "banana", "42", "lêu lêu", "=)))", "hỏi Google đi", "Math ERROR lol", "ủa alo?", "69", "chịu", "Thuận béo"};
+    private final java.util.Random trollRandom = new java.util.Random();
+
+    /** Chế độ troll: chỉ đổi cái hiển thị, kết quả thật (Ans, STO, lịch sử...) vẫn đúng. */
+    private void showTroll() {
+        if (lastResult == null) return;
+        if (trollRandom.nextBoolean()) {
+            double off = (1 + trollRandom.nextInt(3)) * (trollRandom.nextBoolean() ? 1 : -1);
+            result.showText(Calculator.format(lastResult + off));
+        } else {
+            result.showText(TROLL_TEXTS[trollRandom.nextInt(TROLL_TEXTS.length)]);
+        }
     }
 
     /** Giá trị hiện tại: tính biểu thức đang nhập (nếu có) hoặc lấy kết quả vừa rồi. */
